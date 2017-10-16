@@ -21,9 +21,12 @@ from pynodegl import (
         Compute,
         ComputeProgram,
         ConfigBlend,
+        ConfigDepth,
+        ConfigPolygonMode,
         GraphicConfig,
         Geometry,
         Group,
+        OctoSphere,
         Media,
         Program,
         Quad,
@@ -95,6 +98,32 @@ def triangle(cfg, size=0.5):
               AnimKeyFrameFloat(cfg.duration, -360*2)]
     node = Rotate(node, anim=AnimatedFloat(animkf))
     return node
+
+@scene(subdivision={'type': 'range', 'range': [0, 6], 'unit_base': 1},
+       wireframe={'type': 'bool'})
+def octosphere(cfg, subdivision=3, wireframe=0):
+    octosphere = OctoSphere(subdivision, uvmapping_3d=1)
+
+    r = Render(octosphere, program=Program(fragment=get_frag('colored-normals')))
+    r.update_uniforms(color=UniformVec4(value=(0, .6, .8, 0.5)))
+
+    for i in range(3):
+        animkf = AnimatedFloat([AnimKeyFrameFloat(0, 0),
+                                AnimKeyFrameFloat(cfg.duration, 360 * (i + 1))])
+        axis = [int(i == x) for x in range(3)]
+        r = Rotate(r, axis=axis, anim=animkf)
+
+    r = GraphicConfig(r,
+                      depth=ConfigDepth(GL.GL_TRUE),
+                      polygonmode=ConfigPolygonMode(GL.GL_LINE if wireframe else GL.GL_FILL))
+
+    root = Camera(r)
+    root.set_eye(0.0, 0.0, 4.0)
+    root.set_center(0.0, 0.0, 0.0)
+    root.set_up(0.0, 1.0, 0.0)
+    root.set_perspective(45.0, cfg.aspect_ratio[0] / float(cfg.aspect_ratio[1]), 1.0, 10.0)
+    return root
+
 
 @scene(n={'type': 'range', 'range': [2,10]})
 def fibo(cfg, n=8):

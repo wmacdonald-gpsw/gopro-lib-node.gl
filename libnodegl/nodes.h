@@ -173,6 +173,10 @@ struct geometry {
     double radius;
     int npoints;
 
+    /* octosphere params */
+    int subdivision;
+    int uvmapping_3d;
+
     /* geometry params */
     struct ngl_node *vertices_buffer;
     struct ngl_node *uvcoords_buffer;

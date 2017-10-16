@@ -47,6 +47,7 @@
 
 #define GEOMETRY_TYPES_LIST (const int[]){NGL_NODE_CIRCLE,          \
                                           NGL_NODE_GEOMETRY,        \
+                                          NGL_NODE_OCTOSPHERE,      \
                                           NGL_NODE_QUAD,            \
                                           NGL_NODE_TRIANGLE,        \
                                           -1}

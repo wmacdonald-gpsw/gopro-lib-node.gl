@@ -79,6 +79,7 @@
     action(NGL_NODE_GROUP,                  ngli_group_class)                   \
     action(NGL_NODE_IDENTITY,               ngli_identity_class)                \
     action(NGL_NODE_MEDIA,                  ngli_media_class)                   \
+    action(NGL_NODE_OCTOSPHERE,             ngli_octosphere_class)              \
     action(NGL_NODE_PROGRAM,                ngli_program_class)                 \
     action(NGL_NODE_QUAD,                   ngli_quad_class)                    \
     action(NGL_NODE_RENDER,                 ngli_render_class)                  \

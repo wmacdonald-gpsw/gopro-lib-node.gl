@@ -256,6 +256,11 @@
         - [time_anim, Node]
         - [audio_tex, int]
 
+- OctoSphere:
+    optional:
+        - [subdivision, int]
+        - [uvmapping_3d, int]
+
 - Program:
     optional:
         - [vertex, string]
