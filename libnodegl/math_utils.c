@@ -80,6 +80,13 @@ void ngli_vec3_normalvec(float *dst, float *a, float *b, float *c)
     ngli_vec3_norm(dst, dst);
 }
 
+void ngli_vec3_lerp(float *dst, float *a, float *b, float c)
+{
+    dst[0] = a[0] + c * (b[0] - a[0]);
+    dst[1] = a[1] + c * (b[1] - a[1]);
+    dst[2] = a[2] + c * (b[2] - a[2]);
+}
+
 void ngli_mat3_from_mat4(float *dst, const float *m)
 {
     memcpy(dst,     m,     3 * sizeof(*m));
