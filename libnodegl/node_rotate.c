@@ -38,7 +38,7 @@ static const struct node_param rotate_params[] = {
     {NULL}
 };
 
-static const float get_angle(struct rotate *s, double t)
+static const float get_angle(struct rotate *s, int64_t t)
 {
     if (!s->anim)
         return s->angle;
@@ -63,7 +63,7 @@ static int rotate_init(struct ngl_node *node)
     return 0;
 }
 
-static int rotate_update(struct ngl_node *node, double t)
+static int rotate_update(struct ngl_node *node, int64_t t)
 {
     struct rotate *s = node->priv_data;
     struct ngl_node *child = s->child;

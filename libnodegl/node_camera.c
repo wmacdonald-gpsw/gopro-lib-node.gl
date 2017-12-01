@@ -96,7 +96,7 @@ static int camera_init(struct ngl_node *node)
     return 0;
 }
 
-static int camera_update(struct ngl_node *node, double t)
+static int camera_update(struct ngl_node *node, int64_t t)
 {
     struct camera *s = node->priv_data;
     struct ngl_node *child = s->child;

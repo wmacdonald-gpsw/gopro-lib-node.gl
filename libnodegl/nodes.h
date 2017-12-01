@@ -62,10 +62,10 @@ struct ngl_node {
     NGLI_ALIGNED_MAT(projection_matrix);
     int state;
 
-    double last_update_time;
+    int64_t last_update_time;
 
     int is_active;
-    double visit_time;
+    int64_t visit_time;
 
     char *name;
 
@@ -363,8 +363,8 @@ struct media {
 };
 
 struct timerangemode {
-    double start_time;
-    double render_time;
+    int64_t start_time;
+    int64_t render_time;
     int updated;
 };
 
@@ -401,7 +401,7 @@ struct animation {
 };
 
 struct animkeyframe {
-    double time;
+    int64_t time;
     float value[4];
     double scalar;
     uint8_t *data;
@@ -471,9 +471,9 @@ struct node_class {
     int id;
     const char *name;
     int (*init)(struct ngl_node *node);
-    int (*visit)(struct ngl_node *node, const struct ngl_node *from, double t);
+    int (*visit)(struct ngl_node *node, const struct ngl_node *from, int64_t t);
     int (*prefetch)(struct ngl_node *node);
-    int (*update)(struct ngl_node *node, double t);
+    int (*update)(struct ngl_node *node, int64_t t);
     void (*draw)(struct ngl_node *node);
     void (*release)(struct ngl_node *node);
     void (*uninit)(struct ngl_node *node);
@@ -486,9 +486,9 @@ struct node_class {
 void ngli_node_print_specs(void);
 
 int ngli_node_init(struct ngl_node *node);
-int ngli_node_visit(struct ngl_node *node, const struct ngl_node *from, double t);
-int ngli_node_honor_release_prefetch(struct ngl_node *node, double t);
-int ngli_node_update(struct ngl_node *node, double t);
+int ngli_node_visit(struct ngl_node *node, const struct ngl_node *from, int64_t t);
+int ngli_node_honor_release_prefetch(struct ngl_node *node, int64_t t);
+int ngli_node_update(struct ngl_node *node, int64_t t);
 void ngli_node_draw(struct ngl_node *node);
 
 int ngli_node_attach_ctx(struct ngl_node *node, struct ngl_ctx *ctx);

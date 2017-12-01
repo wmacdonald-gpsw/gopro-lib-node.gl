@@ -31,8 +31,8 @@ struct timerangefilter {
     struct ngl_node **ranges;
     int nb_ranges;
     int current_range;
-    double prefetch_time;
-    double max_idle_time;
+    int64_t prefetch_time;
+    int64_t max_idle_time;
 
     int drawme;
 };
@@ -48,8 +48,8 @@ static const struct node_param timerangefilter_params[] = {
     {"ranges", PARAM_TYPE_NODELIST, OFFSET(ranges),
                .node_types=RANGES_TYPES_LIST,
                .flags=PARAM_FLAG_DOT_DISPLAY_PACKED},
-    {"prefetch_time", PARAM_TYPE_DBL, OFFSET(prefetch_time), {.dbl=1.0}},
-    {"max_idle_time", PARAM_TYPE_DBL, OFFSET(max_idle_time), {.dbl=4.0}},
+    {"prefetch_time", PARAM_TYPE_TIMEMS, OFFSET(prefetch_time), {.dbl=1.0}},
+    {"max_idle_time", PARAM_TYPE_TIMEMS, OFFSET(max_idle_time), {.dbl=4.0}},
     {NULL}
 };
 
@@ -57,13 +57,13 @@ static int timerangefilter_init(struct ngl_node *node)
 {
     struct timerangefilter *s = node->priv_data;
 
-    double prev_start_time = 0;
+    int64_t prev_start_time = 0;
     for (int i = 0; i < s->nb_ranges; i++) {
         const struct timerangemode *trm = s->ranges[i]->priv_data;
 
         if (trm->start_time < prev_start_time) {
             LOG(ERROR, "Time ranges must be positive and monotically increasing: %g < %g",
-                trm->start_time, prev_start_time);
+                NGLI_MS2TS(trm->start_time), NGLI_MS2TS(prev_start_time));
             return -1;
         }
         prev_start_time = trm->start_time;
@@ -82,7 +82,7 @@ static int timerangefilter_init(struct ngl_node *node)
     return 0;
 }
 
-static int get_rr_id(const struct timerangefilter *s, int start, double t)
+static int get_rr_id(const struct timerangefilter *s, int start, int64_t t)
 {
     int ret = -1;
 
@@ -95,7 +95,7 @@ static int get_rr_id(const struct timerangefilter *s, int start, double t)
     return ret;
 }
 
-static int update_rr_state(struct timerangefilter *s, double t)
+static int update_rr_state(struct timerangefilter *s, int64_t t)
 {
     if (!s->nb_ranges)
         return -1;
@@ -126,7 +126,7 @@ static int update_rr_state(struct timerangefilter *s, double t)
 }
 
 // TODO: render once
-static int timerangefilter_visit(struct ngl_node *node, const struct ngl_node *from, double t)
+static int timerangefilter_visit(struct ngl_node *node, const struct ngl_node *from, int64_t t)
 {
     struct timerangefilter *s = node->priv_data;
 
@@ -151,7 +151,7 @@ static int timerangefilter_visit(struct ngl_node *node, const struct ngl_node *f
                     // We assume here the next range requires the node started
                     // as the current one doesn't.
                     const struct timerangemode *next = s->ranges[rr_id + 1]->priv_data;
-                    const double next_use_in = next->start_time - t;
+                    const int64_t next_use_in = next->start_time - t;
 
                     if (next_use_in < s->prefetch_time) {
                         // The node will actually be needed soon, so we need to
@@ -198,7 +198,7 @@ static int timerangefilter_visit(struct ngl_node *node, const struct ngl_node *f
     return ngli_node_visit(s->child, node, t);
 }
 
-static int timerangefilter_update(struct ngl_node *node, double t)
+static int timerangefilter_update(struct ngl_node *node, int64_t t)
 {
     struct timerangefilter *s = node->priv_data;
 

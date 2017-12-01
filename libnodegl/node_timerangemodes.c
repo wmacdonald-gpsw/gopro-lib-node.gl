@@ -26,37 +26,38 @@
 
 #define OFFSET(x) offsetof(struct timerangemode, x)
 static const struct node_param continuous_params[] = {
-    {"start_time", PARAM_TYPE_DBL, OFFSET(start_time), .flags = PARAM_FLAG_CONSTRUCTOR},
+    {"start_time", PARAM_TYPE_TIMEMS, OFFSET(start_time), .flags = PARAM_FLAG_CONSTRUCTOR},
     {NULL}
 };
 
 static const struct node_param norender_params[] = {
-    {"start_time", PARAM_TYPE_DBL, OFFSET(start_time), .flags = PARAM_FLAG_CONSTRUCTOR},
+    {"start_time", PARAM_TYPE_TIMEMS, OFFSET(start_time), .flags = PARAM_FLAG_CONSTRUCTOR},
     {NULL}
 };
 
 static const struct node_param once_params[] = {
-    {"start_time",  PARAM_TYPE_DBL, OFFSET(start_time),  .flags = PARAM_FLAG_CONSTRUCTOR},
-    {"render_time", PARAM_TYPE_DBL, OFFSET(render_time), .flags = PARAM_FLAG_CONSTRUCTOR},
+    {"start_time",  PARAM_TYPE_TIMEMS, OFFSET(start_time),  .flags = PARAM_FLAG_CONSTRUCTOR},
+    {"render_time", PARAM_TYPE_TIMEMS, OFFSET(render_time), .flags = PARAM_FLAG_CONSTRUCTOR},
     {NULL}
 };
 
 static char *timerangemode_info_str_continous(const struct ngl_node *node)
 {
     const struct timerangemode *s = node->priv_data;
-    return ngli_asprintf("cont at %g", s->start_time);
+    return ngli_asprintf("cont at %g", NGLI_MS2TS(s->start_time));
 }
 
 static char *timerangemode_info_str_norender(const struct ngl_node *node)
 {
     const struct timerangemode *s = node->priv_data;
-    return ngli_asprintf("noop at %g", s->start_time);
+    return ngli_asprintf("noop at %g", NGLI_MS2TS(s->start_time));
 }
 
 static char *timerangemode_info_str_once(const struct ngl_node *node)
 {
     const struct timerangemode *s = node->priv_data;
-    return ngli_asprintf("once at %g (with t=%g)", s->start_time, s->render_time);
+    return ngli_asprintf("once at %g (with t=%g)",
+                         NGLI_MS2TS(s->start_time), NGLI_MS2TS(s->render_time));
 }
 
 const struct node_class ngli_timerangemodecont_class = {

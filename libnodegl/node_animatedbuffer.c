@@ -33,7 +33,7 @@ static const struct node_param animatedbuffer_params[] = {
     {NULL}
 };
 
-static int get_kf_id(struct ngl_node **animkf, int nb_animkf, int start, double t)
+static int get_kf_id(struct ngl_node **animkf, int nb_animkf, int start, int64_t t)
 {
     int ret = -1;
 
@@ -48,7 +48,7 @@ static int get_kf_id(struct ngl_node **animkf, int nb_animkf, int start, double 
 
 #define MIX(x, y, a) ((x)*(1.-(a)) + (y)*(a))
 
-static int animatedbuffer_update(struct ngl_node *node, double t)
+static int animatedbuffer_update(struct ngl_node *node, int64_t t)
 {
     struct buffer *s = node->priv_data;
     struct ngl_node **animkf = s->animkf;
@@ -63,9 +63,9 @@ static int animatedbuffer_update(struct ngl_node *node, double t)
     if (kf_id >= 0 && kf_id < nb_animkf - 1) {
         const struct animkeyframe *kf0 = animkf[kf_id    ]->priv_data;
         const struct animkeyframe *kf1 = animkf[kf_id + 1]->priv_data;
-        const double t0 = kf0->time;
-        const double t1 = kf1->time;
-        const double tnorm = (t - t0) / (t1 - t0);
+        const int64_t t0 = kf0->time;
+        const int64_t t1 = kf1->time;
+        const double tnorm = (t - t0) * (1.0 / (t1 - t0));
         const double ratio = kf1->function(tnorm, kf1->nb_args, kf1->args);
         s->current_kf = kf_id;
 
@@ -98,7 +98,7 @@ static int animatedbuffer_init(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *glcontext = ctx->glcontext;
     const struct glfunctions *gl = &glcontext->funcs;
-    double prev_time = 0;
+    int64_t prev_time = 0;
 
     s->data_comp = node->class->id - NGL_NODE_ANIMATEDBUFFERFLOAT + 1;
     s->data_stride = s->data_comp * sizeof(float);
@@ -110,7 +110,7 @@ static int animatedbuffer_init(struct ngl_node *node)
 
         if (kf->time < prev_time) {
             LOG(ERROR, "key frames must be positive and monotically increasing: %g < %g",
-                kf->time, prev_time);
+                NGLI_MS2TS(kf->time), NGLI_MS2TS(prev_time));
             return -1;
         }
         prev_time = kf->time;

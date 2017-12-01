@@ -491,7 +491,7 @@ static void handle_buffer_frame(struct ngl_node *node)
     ngli_texture_update_local_texture(node, s->width, s->height, s->depth, data);
 }
 
-static int texture_update(struct ngl_node *node, double t)
+static int texture_update(struct ngl_node *node, int64_t t)
 {
     struct texture *s = node->priv_data;
 

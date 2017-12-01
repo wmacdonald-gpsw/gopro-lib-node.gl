@@ -186,6 +186,7 @@ static void node_release(struct ngl_node *node)
 static const size_t opt_sizes[] = {
     [PARAM_TYPE_INT]      = sizeof(int),
     [PARAM_TYPE_I64]      = sizeof(int64_t),
+    [PARAM_TYPE_TIMEMS]   = sizeof(int64_t),
     [PARAM_TYPE_DBL]      = sizeof(double),
     [PARAM_TYPE_STR]      = sizeof(char *),
     [PARAM_TYPE_DATA]     = sizeof(void *)             + sizeof(int),
@@ -333,7 +334,7 @@ int ngli_node_init(struct ngl_node *node)
     return 0;
 }
 
-int ngli_node_visit(struct ngl_node *node, const struct ngl_node *from, double t)
+int ngli_node_visit(struct ngl_node *node, const struct ngl_node *from, int64_t t)
 {
     int ret = ngli_node_init(node);
     if (ret < 0)
@@ -411,7 +412,7 @@ static int node_prefetch(struct ngl_node *node)
     return 0;
 }
 
-int ngli_node_honor_release_prefetch(struct ngl_node *node, double t)
+int ngli_node_honor_release_prefetch(struct ngl_node *node, int64_t t)
 {
     uint8_t *base_ptr = node->priv_data;
     const struct node_param *par = node->class->params;
@@ -466,7 +467,7 @@ int ngli_node_honor_release_prefetch(struct ngl_node *node, double t)
     return 0;
 }
 
-int ngli_node_update(struct ngl_node *node, double t)
+int ngli_node_update(struct ngl_node *node, int64_t t)
 {
     int ret = ngli_node_init(node);
     if (ret < 0)
@@ -481,12 +482,12 @@ int ngli_node_update(struct ngl_node *node, double t)
             if (ret < 0)
                 return ret;
 
-            LOG(VERBOSE, "UPDATE %s @ %p with t=%g", node->name, node, t);
+            LOG(VERBOSE, "UPDATE %s @ %p with t=%g", node->name, node, NGLI_MS2TS(t));
             ret = node->class->update(node, t);
             if (ret < 0)
                 return ret;
         } else {
-            LOG(VERBOSE, "%s already updated for t=%g, skip it", node->name, t);
+            LOG(VERBOSE, "%s already updated for t=%g, skip it", node->name, NGLI_MS2TS(t));
         }
         node->last_update_time = t;
     }

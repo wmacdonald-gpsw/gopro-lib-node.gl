@@ -35,7 +35,7 @@
 
 #define OFFSET(x) offsetof(struct animkeyframe, x)
 static const struct node_param animkeyframefloat_params[] = {
-    {"time",   PARAM_TYPE_DBL,  OFFSET(time),   .flags=PARAM_FLAG_CONSTRUCTOR},
+    {"time",   PARAM_TYPE_TIMEMS, OFFSET(time), .flags=PARAM_FLAG_CONSTRUCTOR},
     {"value",  PARAM_TYPE_DBL,  OFFSET(scalar), .flags=PARAM_FLAG_CONSTRUCTOR},
     {"easing", PARAM_TYPE_STR,  OFFSET(easing), {.str="linear"}},
     {"easing_args", PARAM_TYPE_DBLLIST, OFFSET(args)},
@@ -43,7 +43,7 @@ static const struct node_param animkeyframefloat_params[] = {
 };
 
 static const struct node_param animkeyframevec2_params[] = {
-    {"time",   PARAM_TYPE_DBL,  OFFSET(time),   .flags=PARAM_FLAG_CONSTRUCTOR},
+    {"time",   PARAM_TYPE_TIMEMS, OFFSET(time),   .flags=PARAM_FLAG_CONSTRUCTOR},
     {"value",  PARAM_TYPE_VEC2, OFFSET(value),  .flags=PARAM_FLAG_CONSTRUCTOR},
     {"easing", PARAM_TYPE_STR,  OFFSET(easing), {.str="linear"}},
     {"easing_args", PARAM_TYPE_DBLLIST, OFFSET(args)},
@@ -51,7 +51,7 @@ static const struct node_param animkeyframevec2_params[] = {
 };
 
 static const struct node_param animkeyframevec3_params[] = {
-    {"time",   PARAM_TYPE_DBL,  OFFSET(time),   .flags=PARAM_FLAG_CONSTRUCTOR},
+    {"time",   PARAM_TYPE_TIMEMS, OFFSET(time), .flags=PARAM_FLAG_CONSTRUCTOR},
     {"value",  PARAM_TYPE_VEC3, OFFSET(value),  .flags=PARAM_FLAG_CONSTRUCTOR},
     {"easing", PARAM_TYPE_STR,  OFFSET(easing), {.str="linear"}},
     {"easing_args", PARAM_TYPE_DBLLIST, OFFSET(args)},
@@ -59,7 +59,7 @@ static const struct node_param animkeyframevec3_params[] = {
 };
 
 static const struct node_param animkeyframevec4_params[] = {
-    {"time",   PARAM_TYPE_DBL,  OFFSET(time),   .flags=PARAM_FLAG_CONSTRUCTOR},
+    {"time",   PARAM_TYPE_TIMEMS, OFFSET(time), .flags=PARAM_FLAG_CONSTRUCTOR},
     {"value",  PARAM_TYPE_VEC4, OFFSET(value),  .flags=PARAM_FLAG_CONSTRUCTOR},
     {"easing", PARAM_TYPE_STR,  OFFSET(easing), {.str="linear"}},
     {"easing_args", PARAM_TYPE_DBLLIST, OFFSET(args)},
@@ -67,7 +67,7 @@ static const struct node_param animkeyframevec4_params[] = {
 };
 
 static const struct node_param animkeyframebuffer_params[] = {
-    {"time",        PARAM_TYPE_DBL,     OFFSET(time), .flags=PARAM_FLAG_CONSTRUCTOR},
+    {"time",        PARAM_TYPE_TIMEMS,  OFFSET(time), .flags=PARAM_FLAG_CONSTRUCTOR},
     {"data",        PARAM_TYPE_DATA,    OFFSET(data)},
     {"easing",      PARAM_TYPE_STR,     OFFSET(easing), {.str="linear"}},
     {"easing_args", PARAM_TYPE_DBLLIST, OFFSET(args)},
@@ -397,23 +397,23 @@ static int animkeyframe_init(struct ngl_node *node)
     if (node->class->id == NGL_NODE_ANIMKEYFRAMEVEC2)
         LOG(VERBOSE, "%s of type %s starting at (%f,%f) for t=%f",
             node->class->name, easings[easing_id].name,
-            s->value[0], s->value[1], s->time);
+            s->value[0], s->value[1], NGLI_MS2TS(s->time));
     else if (node->class->id == NGL_NODE_ANIMKEYFRAMEVEC3)
         LOG(VERBOSE, "%s of type %s starting at (%f,%f,%f) for t=%f",
             node->class->name, easings[easing_id].name,
-            s->value[0], s->value[1], s->value[2], s->time);
+            s->value[0], s->value[1], s->value[2], NGLI_MS2TS(s->time));
     else if (node->class->id == NGL_NODE_ANIMKEYFRAMEVEC4)
         LOG(VERBOSE, "%s of type %s starting at (%f,%f,%f,%f) for t=%f",
             node->class->name, easings[easing_id].name,
-            s->value[0], s->value[1], s->value[2], s->value[3], s->time);
+            s->value[0], s->value[1], s->value[2], s->value[3], NGLI_MS2TS(s->time));
     else if (node->class->id == NGL_NODE_ANIMKEYFRAMEFLOAT)
         LOG(VERBOSE, "%s of type %s starting at %f for t=%f",
             node->class->name, easings[easing_id].name,
-            s->scalar, s->time);
+            s->scalar, NGLI_MS2TS(s->time));
     else if (node->class->id == NGL_NODE_ANIMKEYFRAMEBUFFER)
         LOG(VERBOSE, "%s of type %s starting with t=%f (data size: %d)",
             node->class->name, easings[easing_id].name,
-            s->time, s->data_size);
+            NGLI_MS2TS(s->time), s->data_size);
     else
         return -1;
 
@@ -431,7 +431,7 @@ static char *animkeyframe_info_str(const struct ngl_node *node)
     if (!b)
         return NULL;
 
-    ngli_bstr_print(b, "%s @ t=%g ", s->easing, s->time);
+    ngli_bstr_print(b, "%s @ t=%g ", s->easing, NGLI_MS2TS(s->time));
     if (s->nb_args) {
         const struct node_param *easing_args_par = ngli_params_find(params, "easing_args");
         ngli_assert(easing_args_par);

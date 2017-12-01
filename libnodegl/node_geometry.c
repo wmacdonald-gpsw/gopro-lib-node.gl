@@ -156,7 +156,7 @@ static int geometry_init(struct ngl_node *node)
     return 0;
 }
 
-static int geometry_update(struct ngl_node *node, double t)
+static int geometry_update(struct ngl_node *node, int64_t t)
 {
     struct geometry *s = node->priv_data;
 

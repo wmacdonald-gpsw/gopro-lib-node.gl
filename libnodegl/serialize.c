@@ -86,6 +86,7 @@ static void serialize_options(struct hmap *nlist,
                     ngli_bstr_print(b, " %s:%"PRId64, p->key, v);
                 break;
             }
+            case PARAM_TYPE_TIMEMS:
             case PARAM_TYPE_DBL: {
                 const double v = *(double *)(priv + p->offset);
                 if (constructor)

@@ -293,7 +293,7 @@ static void compute_uninit(struct ngl_node *node)
     free(s->buffer_ids);
 }
 
-static int compute_update(struct ngl_node *node, double t)
+static int compute_update(struct ngl_node *node, int64_t t)
 {
     struct compute *s = node->priv_data;
 

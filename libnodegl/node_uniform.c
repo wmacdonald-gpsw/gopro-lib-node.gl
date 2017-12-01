@@ -77,7 +77,7 @@ static const struct node_param uniformmat4_params[] = {
     {NULL}
 };
 
-static inline int uniform_update(struct uniform *s, double t, int len)
+static inline int uniform_update(struct uniform *s, int64_t t, int len)
 {
     if (s->anim) {
         struct ngl_node *anim_node = s->anim;
@@ -94,7 +94,7 @@ static inline int uniform_update(struct uniform *s, double t, int len)
 }
 
 #define UPDATE_FUNC(type, len)                                          \
-static int uniform##type##_update(struct ngl_node *node, double t)      \
+static int uniform##type##_update(struct ngl_node *node, int64_t t)     \
 {                                                                       \
     return uniform_update(node->priv_data, t, len);                     \
 }
@@ -104,7 +104,7 @@ UPDATE_FUNC(vec2,   2);
 UPDATE_FUNC(vec3,   3);
 UPDATE_FUNC(vec4,   4);
 
-static int uniform_mat_update(struct ngl_node *node, double t)
+static int uniform_mat_update(struct ngl_node *node, int64_t t)
 {
     struct uniform *s = node->priv_data;
     if (s->transform) {

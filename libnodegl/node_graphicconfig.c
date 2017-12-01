@@ -48,7 +48,7 @@ static int graphicconfig_init(struct ngl_node *node)
     return ngli_node_init(s->child);
 }
 
-static int graphicconfig_update(struct ngl_node *node, double t)
+static int graphicconfig_update(struct ngl_node *node, int64_t t)
 {
     struct graphicconfig *s = node->priv_data;
     struct ngl_node *child = s->child;

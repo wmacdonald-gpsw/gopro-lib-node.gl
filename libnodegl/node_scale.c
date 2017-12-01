@@ -37,7 +37,7 @@ static const struct node_param scale_params[] = {
     {NULL}
 };
 
-static const float *get_factors(struct scale *s, double t)
+static const float *get_factors(struct scale *s, int64_t t)
 {
     if (!s->anim)
         return s->factors;
@@ -49,7 +49,7 @@ static const float *get_factors(struct scale *s, double t)
     return anim->values;
 }
 
-static int scale_update(struct ngl_node *node, double t)
+static int scale_update(struct ngl_node *node, int64_t t)
 {
     struct scale *s = node->priv_data;
     struct ngl_node *child = s->child;

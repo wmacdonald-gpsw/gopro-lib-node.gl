@@ -491,7 +491,7 @@ static void render_uninit(struct ngl_node *node)
     free(s->buffer_ids);
 }
 
-static int render_update(struct ngl_node *node, double t)
+static int render_update(struct ngl_node *node, int64_t t)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *glcontext = ctx->glcontext;

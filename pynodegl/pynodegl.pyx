@@ -1,4 +1,5 @@
 from libc.stdlib cimport calloc
+from libc.stdint cimport int64_t
 
 cdef extern from "nodegl.h":
     cdef int NGL_LOG_VERBOSE
@@ -22,6 +23,7 @@ cdef extern from "nodegl.h":
     char *ngl_node_serialize(const ngl_node *node)
 
     int ngl_anim_evaluate(ngl_node *anim, float *dst, double t)
+    int ngl_anim_evaluate_ms(ngl_node *anim, float *dst, int64_t t)
 
     cdef int NGL_GLPLATFORM_AUTO
     cdef int NGL_GLPLATFORM_GLX
@@ -39,6 +41,7 @@ cdef extern from "nodegl.h":
     int ngl_set_glcontext(ngl_ctx *s, void *display, void *window, void *handle, int platform, int api)
     int ngl_set_scene(ngl_ctx *s, ngl_node *scene)
     int ngl_draw(ngl_ctx *s, double t) nogil
+    int ngl_draw_ms(ngl_ctx *s, int64_t t) nogil
     void ngl_free(ngl_ctx **ss)
 
 GLPLATFORM_AUTO = NGL_GLPLATFORM_AUTO
@@ -79,6 +82,10 @@ cdef class Viewer:
     def draw(self, double t):
         with nogil:
             ngl_draw(self.ctx, t)
+
+    def draw_ms(self, int64_t t):
+        with nogil:
+            ngl_draw_ms(self.ctx, t)
 
     def __dealloc__(self):
         ngl_free(&self.ctx)

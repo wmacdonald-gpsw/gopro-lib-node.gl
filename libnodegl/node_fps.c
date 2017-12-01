@@ -247,7 +247,7 @@ static void register_time(struct fps_measuring *m, int64_t t)
     m->count = NGLI_MIN(m->count + 1, m->nb);
 }
 
-static int fps_update(struct ngl_node *node, double t)
+static int fps_update(struct ngl_node *node, int64_t t)
 {
     int ret;
     struct fps *s = node->priv_data;

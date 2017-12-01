@@ -36,7 +36,7 @@ static const struct node_param group_params[] = {
     {NULL}
 };
 
-static int group_update(struct ngl_node *node, double t)
+static int group_update(struct ngl_node *node, int64_t t)
 {
     struct group *s = node->priv_data;
 

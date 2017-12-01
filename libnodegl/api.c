@@ -69,7 +69,7 @@ int ngl_set_scene(struct ngl_ctx *s, struct ngl_node *scene)
     return 0;
 }
 
-int ngl_draw(struct ngl_ctx *s, double t)
+int ngl_draw_ms(struct ngl_ctx *s, int64_t t)
 {
     struct glcontext *glcontext = s->glcontext;
     const struct glfunctions *gl = &glcontext->funcs;
@@ -85,7 +85,7 @@ int ngl_draw(struct ngl_ctx *s, double t)
         return -1;
     }
 
-    LOG(DEBUG, "draw scene %s @ t=%f", scene->name, t);
+    LOG(DEBUG, "draw scene %s @ t=%g", scene->name, NGLI_MS2TS(t));
 
     ngli_glClear(gl, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
@@ -108,6 +108,11 @@ end:
         ret = -1;
 
     return ret;
+}
+
+int ngl_draw(struct ngl_ctx *s, double t)
+{
+    return ngl_draw_ms(s, NGLI_TS2MS(t));
 }
 
 void ngl_free(struct ngl_ctx **ss)

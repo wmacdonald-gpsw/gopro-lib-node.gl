@@ -59,6 +59,11 @@ void ngli_params_bstr_print_val(struct bstr *b, uint8_t *base_ptr, const struct 
             ngli_bstr_print(b, "%" PRId64, v);
             break;
         }
+        case PARAM_TYPE_TIMEMS: {
+            const int64_t v = *(int64_t *)(base_ptr + par->offset);
+            ngli_bstr_print(b, "%g", NGLI_MS2TS(v));
+            break;
+        }
         case PARAM_TYPE_VEC2: {
             const float *v = (const float *)(base_ptr + par->offset);
             ngli_bstr_print(b, "(%g,%g)", v[0], v[1]);
@@ -146,6 +151,13 @@ int ngli_params_set(uint8_t *base_ptr, const struct node_param *par, va_list *ap
             double v = va_arg(*ap, double);
             LOG(VERBOSE, "set %s to %g", par->key, v);
             memcpy(dstp, &v, sizeof(v));
+            break;
+        }
+        case PARAM_TYPE_TIMEMS: {
+            double v = va_arg(*ap, double);
+            const int64_t t = NGLI_TS2MS(v);
+            LOG(VERBOSE, "set %s to %g (%"PRId64" ms)", par->key, v, t);
+            memcpy(dstp, &t, sizeof(t));
             break;
         }
         case PARAM_TYPE_STR: {
@@ -300,6 +312,7 @@ int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
                     ngli_params_vset(base_ptr, par, par->def_value.i64);
                     break;
                 case PARAM_TYPE_DBL:
+                case PARAM_TYPE_TIMEMS:
                     ngli_params_vset(base_ptr, par, par->def_value.dbl);
                     break;
                 case PARAM_TYPE_STR:

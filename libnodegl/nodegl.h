@@ -168,6 +168,7 @@ struct ngl_ctx *ngl_create(void);
 int ngl_set_glcontext(struct ngl_ctx *s, void *display, void *window, void *handle, int platform, int api);
 int ngl_set_scene(struct ngl_ctx *s, struct ngl_node *scene);
 int ngl_draw(struct ngl_ctx *s, double t);
+int ngl_draw_ms(struct ngl_ctx *s, int64_t t);
 void ngl_free(struct ngl_ctx **ss);
 
 /* Android */
@@ -179,5 +180,6 @@ void *ngl_android_get_application_context(void);
 
 /* Animation */
 int ngl_anim_evaluate(struct ngl_node *anim, float *dst, double t);
+int ngl_anim_evaluate_ms(struct ngl_node *anim, float *dst, int64_t t);
 
 #endif

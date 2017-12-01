@@ -171,6 +171,7 @@ static int parse_param(struct serial_ctx *sctx, uint8_t *base_ptr,
         CASE_LITERAL(PARAM_TYPE_INT, int,     "%d")
         CASE_LITERAL(PARAM_TYPE_I64, int64_t, "%"SCNd64)
         CASE_LITERAL(PARAM_TYPE_DBL, double,  "%la")
+        CASE_LITERAL(PARAM_TYPE_TIMEMS, double, "%la")
 
         case PARAM_TYPE_STR: {
             len = strcspn(str, " \n");

@@ -35,7 +35,7 @@ static const struct node_param translate_params[] = {
     {NULL}
 };
 
-static const float *get_vector(struct translate *s, double t)
+static const float *get_vector(struct translate *s, int64_t t)
 {
     if (!s->anim)
         return s->vector;
@@ -47,7 +47,7 @@ static const float *get_vector(struct translate *s, double t)
     return anim->values;
 }
 
-static int translate_update(struct ngl_node *node, double t)
+static int translate_update(struct ngl_node *node, int64_t t)
 {
     struct translate *s = node->priv_data;
     struct ngl_node *child = s->child;

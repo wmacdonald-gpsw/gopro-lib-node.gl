@@ -98,7 +98,7 @@ static int rtt_prefetch(struct ngl_node *node)
     return 0;
 }
 
-static int rtt_update(struct ngl_node *node, double t)
+static int rtt_update(struct ngl_node *node, int64_t t)
 {
     struct rtt *s = node->priv_data;
     int ret = ngli_node_update(s->child, t);

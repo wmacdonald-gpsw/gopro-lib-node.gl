@@ -50,7 +50,7 @@ static const struct node_param animatedvec4_params[] = {
     {NULL}
 };
 
-static int get_kf_id(struct ngl_node **animkf, int nb_animkf, int start, double t)
+static int get_kf_id(struct ngl_node **animkf, int nb_animkf, int start, int64_t t)
 {
     int ret = -1;
 
@@ -65,7 +65,7 @@ static int get_kf_id(struct ngl_node **animkf, int nb_animkf, int start, double 
 
 #define MIX(x, y, a) ((x)*(1.-(a)) + (y)*(a))
 
-static inline int animation_update(const struct animation *s, double t, int len,
+static inline int animation_update(const struct animation *s, int64_t t, int len,
                                    float *dst, int *cache)
 {
     struct ngl_node **animkf = s->animkf;
@@ -78,9 +78,9 @@ static inline int animation_update(const struct animation *s, double t, int len,
     if (kf_id >= 0 && kf_id < nb_animkf - 1) {
         const struct animkeyframe *kf0 = animkf[kf_id    ]->priv_data;
         const struct animkeyframe *kf1 = animkf[kf_id + 1]->priv_data;
-        const double t0 = kf0->time;
-        const double t1 = kf1->time;
-        const double tnorm = (t - t0) / (t1 - t0);
+        const int64_t t0 = kf0->time;
+        const int64_t t1 = kf1->time;
+        const double tnorm = (t - t0) * (1.0 / (t1 - t0));
         const double ratio = kf1->function(tnorm, kf1->nb_args, kf1->args);
         *cache = kf_id;
         if (len == 1)
@@ -100,7 +100,7 @@ static inline int animation_update(const struct animation *s, double t, int len,
     return 0;
 }
 
-int ngl_anim_evaluate(struct ngl_node *node, float *dst, double t)
+int ngl_anim_evaluate_ms(struct ngl_node *node, float *dst, int64_t t)
 {
     struct animation *s = node->priv_data;
     if (!s->nb_animkf)
@@ -119,17 +119,22 @@ int ngl_anim_evaluate(struct ngl_node *node, float *dst, double t)
     return animation_update(s, t, len, dst, &s->eval_current_kf);
 }
 
+int ngl_anim_evaluate(struct ngl_node *node, float *dst, double t)
+{
+    return ngl_anim_evaluate_ms(node, dst, NGLI_TS2MS(t));
+}
+
 static int animation_init(struct ngl_node *node)
 {
     struct animation *s = node->priv_data;
-    double prev_time = 0;
+    int64_t prev_time = 0;
 
     for (int i = 0; i < s->nb_animkf; i++) {
         const struct animkeyframe *kf = s->animkf[i]->priv_data;
 
         if (kf->time < prev_time) {
             LOG(ERROR, "key frames must be positive and monotically increasing: %g < %g",
-                kf->time, prev_time);
+                NGLI_MS2TS(kf->time), NGLI_MS2TS(prev_time));
             return -1;
         }
         prev_time = kf->time;
@@ -139,7 +144,7 @@ static int animation_init(struct ngl_node *node)
 }
 
 #define UPDATE_FUNC(type, len)                                          \
-static int animated##type##_update(struct ngl_node *node, double t)     \
+static int animated##type##_update(struct ngl_node *node, int64_t t)    \
 {                                                                       \
     struct animation *s = node->priv_data;                              \
     return animation_update(s, t, len, s->values, &s->current_kf);      \

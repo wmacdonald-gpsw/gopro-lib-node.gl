@@ -174,7 +174,7 @@ static const char * const pix_fmt_names[] = {
     [SXPLAYER_PIXFMT_MEDIACODEC] = "mediacodec",
 };
 
-static int media_update(struct ngl_node *node, double t)
+static int media_update(struct ngl_node *node, int64_t t)
 {
     struct media *s = node->priv_data;
 
@@ -184,7 +184,7 @@ static int media_update(struct ngl_node *node, double t)
         int ret = ngli_node_update(anim_node, t);
         if (ret < 0)
             return ret;
-        t = anim->values[0]; // FIXME we currently loose double precision
+        t = NGLI_TS2MS(anim->values[0]);
     }
 
     t = t - s->start;
@@ -192,8 +192,8 @@ static int media_update(struct ngl_node *node, double t)
         return 0;
 
     sxplayer_release_frame(s->frame);
-    LOG(VERBOSE, "get frame from %s at t=%f", node->name, t);
-    struct sxplayer_frame *frame = sxplayer_get_frame(s->player, t);
+    LOG(VERBOSE, "get frame from %s at t=%g", node->name, NGLI_MS2TS(t));
+    struct sxplayer_frame *frame = sxplayer_get_frame_ms(s->player, t);
     if (frame) {
         const char *pix_fmt_str = frame->pix_fmt >= 0 &&
                                   frame->pix_fmt < NGLI_ARRAY_NB(pix_fmt_names) ? pix_fmt_names[frame->pix_fmt]
