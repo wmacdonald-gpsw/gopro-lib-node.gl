@@ -192,7 +192,7 @@ static int media_update(struct ngl_node *node, int64_t t)
         return 0;
 
     sxplayer_release_frame(s->frame);
-    LOG(VERBOSE, "get frame from %s at t=%g", node->name, NGLI_MS2TS(t));
+    LOG(ERROR, "get frame from %s at t=%g", node->name, NGLI_MS2TS(t));
     struct sxplayer_frame *frame = sxplayer_get_frame_ms(s->player, t);
     if (frame) {
         const char *pix_fmt_str = frame->pix_fmt >= 0 &&
@@ -209,8 +209,8 @@ static int media_update(struct ngl_node *node, int64_t t)
             LOG(ERROR, "Invalid pixel format %d in sxplayer frame", frame->pix_fmt);
             return -1;
         }
-        LOG(VERBOSE, "got frame %dx%d %s with ts=%f", frame->width, frame->height,
-            pix_fmt_str, frame->ts);
+        LOG(ERROR, "got frame %dx%d %s with ts=%f (%"PRId64")", frame->width, frame->height,
+            pix_fmt_str, frame->ts, frame->ms);
     }
     s->frame = frame;
     return 0;

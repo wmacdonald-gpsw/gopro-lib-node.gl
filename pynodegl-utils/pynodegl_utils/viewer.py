@@ -147,7 +147,7 @@ class _GLWidget(QtWidgets.QOpenGLWidget):
 
     def paintGL(self):
         GL.glViewport(self.view_x, self.view_y, self.view_width, self.view_height)
-        self._viewer.draw(self._time)
+        self._viewer.draw_ms(self._time)
 
     def resizeGL(self, screen_width, screen_height):
         screen_width = int(screen_width * self.devicePixelRatioF())
@@ -395,7 +395,9 @@ class _GLView(QtWidgets.QWidget):
         rendering_fps = self._framerate[0] / float(self._framerate[1])
         t = self._frame_index * 1. / rendering_fps
         if self._gl_widget:
-            self._gl_widget.set_time(t)
+            ms = self._frame_index * 1000000 * self._framerate[1] / self._framerate[0]
+            print ms
+            self._gl_widget.set_time(ms)
         cur_time = '%02d:%02d' % divmod(t, 60)
         duration = '%02d:%02d' % divmod(self._scene_duration, 60)
         self._time_lbl.setText('%s / %s (%d @ %.4gHz)' % (cur_time, duration, self._frame_index, rendering_fps))
