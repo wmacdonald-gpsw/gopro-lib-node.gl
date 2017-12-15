@@ -233,7 +233,11 @@ void main(void)
 
 ![my reddish demo](img/ngl-viewer-reddish-scene.png)
 
+For more information on the available information within shaders, you can read
+the [fragment and vertex shader parameters][shaders-doc] documentation.
+
 [book-of-shaders]: http://thebookofshaders.com/
+[shaders-doc]: /doc/expl/shaders.md
 
 ### Introducing uniforms
 
@@ -527,10 +531,15 @@ As parting words, here are some suggestions on how to deal with the rest of the
 documentation, accessible from the [README](/README.md).
 
 From here, if you you're looking at a specific area, you may want to look at
-the [how-to guides][howto].
+the [how-to guides][howto]. You may typically want to start with the
+[animations][howto-anim] or the [media][howto-mobile-video] related articles.
 
 If you need to understand the *why* of certain design decisions or limitations,
-the [discussions and explanations][expl] section will come to an help.
+the [discussions and explanations][expl] section will come to an help.  If you
+are interested in mobile development, the [hardware accelerated video
+article][expl-mobile] is an important read.  [Understanding how the
+Python binding is made][expl-pynodegl] may also help you figuring out how to
+make the best use of it.
 
 Finally, in every situation, you will feel the need to check out the [reference
 documentation][refdoc] for austere but exhaustive information, and in
@@ -539,7 +548,11 @@ reference documentation][ref-pynodegl-utils] will typically offer many helpers
 when starting a creative process.
 
 [howto]:                 /README.md#-how-to-guides
+[howto-anim]:            /doc/howto/animations.md
+[howto-mobile-video]:    /doc/howto/mobile-video.md
 [expl]:                  /README.md#%EF%B8%8F-discussions-and-explanations
+[expl-mobile]:           /doc/expl/mobile.md
+[expl-pynodegl]:         /doc/expl/pynodegl.md
 [refdoc]:                /README.md#-reference-documentation
 [ref-libnodegl]:         /libnodegl/doc/libnodegl.md
 [ref-pynodegl-utils]:    /doc/ref/pynodegl-utils.md
