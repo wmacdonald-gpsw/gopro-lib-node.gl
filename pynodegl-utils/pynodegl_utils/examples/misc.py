@@ -634,3 +634,45 @@ def mountain(cfg, ndim=3, nb_layers=7,
                               blend_src_factor_a='zero',
                               blend_dst_factor_a='one')
     return blend
+
+
+@scene()
+def uniform_arrays(cfg):
+    default_fragment = '''
+#version 100
+precision highp float;
+varying vec2 var_uvcoord;
+uniform vec4 colors[3];
+
+void main(void)
+{
+    int i = int(var_uvcoord.x * 3.0);
+    gl_FragColor = colors[i];
+}
+'''
+
+    cfg.duration = 10.
+    colors_data = array.array('f')
+    colors_data.extend((
+        1.0, 0.0, 0.0, 1.0,
+        0.0, 1.0, 0.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+
+        0.0, 1.0, 0.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+        1.0, 0.0, 0.0, 1.0,
+
+        0.0, 0.0, 1.0, 1.0,
+        1.0, 0.0, 0.0, 1.0,
+        0.0, 1.0, 0.0, 1.0,
+    ) * int(cfg.duration))
+
+    # Stream 3 vec4 every update_interval
+    colors = ngl.BufferVec4(count=3, data=colors_data, update_interval=(1, 2))
+
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    program = ngl.Program()
+    program.set_fragment(default_fragment)
+    render = ngl.Render(quad, program)
+    render.update_uniforms(colors=colors)
+    return render
