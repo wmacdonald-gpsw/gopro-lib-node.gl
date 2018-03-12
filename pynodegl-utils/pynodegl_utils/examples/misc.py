@@ -19,6 +19,7 @@ from pynodegl import (
         BufferUIVec4,
         BufferVec2,
         BufferVec3,
+        BufferVec4,
         Camera,
         Circle,
         Compute,
@@ -623,3 +624,64 @@ def mountain(cfg, ndim=3, nb_layers=7,
                           blend_src_factor_a='zero',
                           blend_dst_factor_a='one')
     return blend
+
+
+@scene()
+def uniform_arrays(cfg):
+
+    default_fragment = '''#version 100
+precision highp float;
+
+varying vec2 var_uvcoord;
+varying vec2 var_tex0_coord;
+uniform sampler2D tex0_sampler;
+
+uniform vec4 colors[3];
+
+void main(void)
+{
+    int i = int(var_uvcoord.x * 3.0);
+    highp vec4 f = colors[i];
+    vec4 color = texture2D(tex0_sampler, var_tex0_coord);
+    gl_FragColor = mix(f, f, 0.5);
+}
+'''
+
+    cfg.duration = 10.
+
+    colors_data = array.array('f')
+    colors_data.extend((
+        1.0, 0.0, 0.0, 1.0,
+        0.0, 1.0, 0.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+
+        0.0, 1.0, 0.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+        1.0, 0.0, 0.0, 1.0,
+
+        0.0, 0.0, 1.0, 1.0,
+        1.0, 0.0, 0.0, 1.0,
+        0.0, 1.0, 0.0, 1.0,
+    ))
+
+    if False:
+        colors = BufferVec4(count=3, data=colors_data, update_interval=1/60.)
+    else:
+        colors = BufferVec4(count=3, filename="/home/mateo/colors.data", update_interval=1/60.)
+
+    q = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    m = Media(cfg.medias[0].filename)
+    t = Texture2D(data_src=m)
+    p = Program()
+    p.set_fragment(default_fragment)
+    render = Render(q, p)
+    render.update_textures(tex0=t)
+    render.update_uniforms(colors=colors)
+
+    camera = Camera(render)
+    camera.set_eye(0.0, 0.0, 4.0)
+    camera.set_center(0.0, 0.0, 0.0)
+    camera.set_up(0.0, 1.0, 0.0)
+    camera.set_perspective(45.0, cfg.aspect_ratio[0] / float(cfg.aspect_ratio[1]), 1.0, 10.0)
+
+    return camera
