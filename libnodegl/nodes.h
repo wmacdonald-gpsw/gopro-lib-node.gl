@@ -241,6 +241,10 @@ struct buffer_priv {
     GLenum usage;
     int data_format;        // any of NGLI_FORMAT_*
 
+    int update_interval[2];
+    uint8_t *data_chunk;
+    int data_chunk_size;
+
     /* animatedbuffer */
     struct ngl_node **animkf;
     int nb_animkf;

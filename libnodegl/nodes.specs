@@ -105,6 +105,7 @@
         - [filename, string]
         - [stride, int]
         - [usage, select]
+        - [update_interval, rational]
 
 - BufferByte: _Buffer
 

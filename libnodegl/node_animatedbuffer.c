@@ -115,10 +115,10 @@ static int animatedbuffer_init(struct ngl_node *node)
     if (!s->count)
         return -1;
 
-    s->data = ngli_calloc(s->count, s->data_stride);
+    s->data = s->data_chunk = ngli_calloc(s->count, s->data_stride);
     if (!s->data)
         return -1;
-    s->data_size = s->count * s->data_stride;
+    s->data_size = s->data_chunk_size = s->count * s->data_stride;
 
     return 0;
 }
