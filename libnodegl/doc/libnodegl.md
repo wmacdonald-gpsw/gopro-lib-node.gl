@@ -331,6 +331,7 @@ Parameter | Ctor. | Type | Description | Default
 `max_nb_frames` |  | [`int`](#parameter-types) | maximum number of frames in sxplayer decoding queue | `1`
 `max_nb_sink` |  | [`int`](#parameter-types) | maximum number of frames in sxplayer filtering queue | `1`
 `max_pixels` |  | [`int`](#parameter-types) | maximum number of pixels per frame | `0`
+`pts_buffer` |  | [`data`](#parameter-types) | buffer of allowed 64-bit presentation timestamps of the media (in stream time base units) | 
 
 
 **Source**: [node_media.c](/libnodegl/node_media.c)

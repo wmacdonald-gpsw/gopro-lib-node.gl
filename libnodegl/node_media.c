@@ -52,6 +52,8 @@ static const struct node_param media_params[] = {
                        .desc=NGLI_DOCSTRING("maximum number of frames in sxplayer filtering queue")},
     {"max_pixels",     PARAM_TYPE_INT, OFFSET(max_pixels),     {.i64=0},
                        .desc=NGLI_DOCSTRING("maximum number of pixels per frame")},
+    {"pts_buffer",     PARAM_TYPE_DATA, OFFSET(pts_buffer),
+                       .desc=NGLI_DOCSTRING("buffer of allowed 64-bit presentation timestamps of the media (in stream time base units)")},
     {NULL}
 };
 
@@ -105,9 +107,24 @@ static int media_init(struct ngl_node *node)
         return -1;
     }
 
+    LOG(ERROR, "PTS BUFFER %p (size=%d n=%d)", s->pts_buffer, s->pts_buffer_size, s->pts_buffer_size / sizeof(int64_t));
+
     struct ngl_node *anim_node = s->anim;
     if (anim_node) {
         struct animation *anim = anim_node->priv_data;
+
+        if (s->pts_buffer) {
+            if (anim->nb_animkf != 2) {
+                LOG(ERROR, "A 2 linear key-frame time animation is required when using a PTS buffer");
+                return -1;
+            }
+
+            sxplayer_set_option(s->player, "pts_filter", s->pts_buffer, s->pts_buffer_size / sizeof(int64_t));
+
+            const struct animkeyframe *kfa = anim->animkf[0]->priv_data;
+            const struct animkeyframe *kfb = anim->animkf[1]->priv_data;
+            s->out_duration = kfb->time - kfa->time;
+        }
 
         // Sanity checks for time animation keyframe
         double prev_media_time = 0;
@@ -213,6 +230,37 @@ static int media_update(struct ngl_node *node, double t)
             const struct animkeyframe *kf0 = anim->animkf[0]->priv_data;
             const double initial_seek = kf0->scalar;
 
+            if (s->pts_buffer) {
+                /* Lazily probe PTS rescaling timebase */
+                int *tb = s->st_timebase;
+                if (!tb[1]) {
+                    struct sxplayer_info info;
+                    sxplayer_get_info(s->player, &info);
+                    memcpy(tb, info.timebase, sizeof(s->st_timebase));
+                    LOG(DEBUG, "using timebase %d/%d for PTS rescaling", tb[0], tb[1]);
+                }
+                if (!tb[1]) {
+                    LOG(ERROR, "invalid stream time base %d/%d, can not continue", tb[0], tb[1]);
+                    return -1;
+                }
+
+                /* Pick the appropriate PTS in the buffer */
+                const int64_t *pts_buffer = s->pts_buffer;
+                const int nb_pts = s->pts_buffer_size / sizeof(*pts_buffer);
+                const int pts_pos = NGLI_MIN(media_time / s->out_duration * nb_pts, nb_pts - 1);
+                const int64_t pts = pts_buffer[pts_pos];
+
+                //LOG(ERROR, "media_time/out_duration = %f/%f = %f", media_time, s->out_duration, media_time / s->out_duration);
+                //LOG(ERROR, "pick pts pos=%d -> %"PRId64, pts_pos, pts);
+
+                const double scale = tb[0] / (double)tb[1];
+
+                media_time = (pts - 1) * scale; // rescale down to be safe
+
+                //LOG(ERROR, "media time requested: %f", media_time);
+            } else {
+
+                // TODO: reindent
             if (anim->nb_animkf == 1) {
                 media_time = t - kf0->time;
             } else {
@@ -227,6 +275,7 @@ static int media_update(struct ngl_node *node, double t)
             if (media_time < initial_seek) {
                 LOG(ERROR, "invalid remapped time %g", media_time);
                 return -1;
+            }
             }
 
             media_time -= initial_seek;
