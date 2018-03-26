@@ -113,6 +113,14 @@ class Media:
     def framerate_float(self):
         return self._framerate[0] / float(self._framerate[1])
 
+    @property
+    def timebase(self):
+        return self._timebase
+
+    @property
+    def timebase_float(self):
+        return self._timebase[0] / float(self._timebase[1])
+
     def _set_media_dimensions(self):
         data = subprocess.check_output(['ffprobe', '-v', '0',
                                         '-select_streams', 'v:0',
@@ -124,6 +132,7 @@ class Media:
         self._dimensions = (st['width'], st['height'])
         self._duration = float(data['format']['duration'])
         self._framerate = tuple(int(x) for x in st['avg_frame_rate'].split('/'))
+        self._timebase = tuple(int(x) for x in st['time_base'].split('/'))
 
     def __init__(self, filename):
         self._filename = filename
