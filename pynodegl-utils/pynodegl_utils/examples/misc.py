@@ -551,3 +551,35 @@ def quaternion(cfg):
     camera.set_perspective(45.0, cfg.aspect_ratio_float, 1.0, 10.0)
 
     return camera
+
+
+@scene()
+def ts_picking(cfg):
+    m0 = cfg.medias[0]
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+
+    '''
+    n:  43 pts:  11008 pts_time:0.716667
+    n: 142 pts:  36352 pts_time:2.36667
+    n: 405 pts: 103680 pts_time:6.75
+    n:1571 pts: 402176 pts_time:26.1833
+    n:1683 pts: 430848 pts_time:28.05
+    '''
+
+    pts_list = [11008, 36352, 103680, 402176, 430848]
+    ts_list = [pts * m0.timebase_float for pts in pts_list]
+
+    cfg.duration = float(len(pts_list))  # one frame every second
+
+    q = Quad()
+    time_animkf = [AnimKeyFrameFloat(0, 0),
+                   AnimKeyFrameFloat(cfg.duration, m0.duration)]
+    m = Media(m0.filename)
+    m.set_time_anim(AnimatedFloat(time_animkf))
+    m.add_ts_list(*ts_list)
+    t = Texture2D(data_src=m)
+    r = Render(q)
+    r.update_textures(tex0=t)
+
+    return r
