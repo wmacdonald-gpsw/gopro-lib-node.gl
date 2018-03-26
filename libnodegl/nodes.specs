@@ -241,6 +241,7 @@
         - [max_nb_frames, int]
         - [max_nb_sink, int]
         - [max_pixels, int]
+        - [ts_list, doubleList]
 
 - Program:
     optional:

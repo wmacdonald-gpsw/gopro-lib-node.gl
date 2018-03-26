@@ -331,6 +331,9 @@ struct media {
     int max_nb_frames;
     int max_nb_sink;
     int max_pixels;
+    double *ts_list;
+    int nb_ts_list;
+    double ts_scale; // only set in case of ts_list usage
 
     int sxplayer_min_level;
 

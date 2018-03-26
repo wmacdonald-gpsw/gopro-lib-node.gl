@@ -52,6 +52,8 @@ static const struct node_param media_params[] = {
                        .desc=NGLI_DOCSTRING("maximum number of frames in sxplayer filtering queue")},
     {"max_pixels",     PARAM_TYPE_INT, OFFSET(max_pixels),     {.i64=0},
                        .desc=NGLI_DOCSTRING("maximum number of pixels per frame")},
+    {"ts_list",        PARAM_TYPE_DBLLIST, OFFSET(ts_list),
+                       .desc=NGLI_DOCSTRING("list of allowed presentation timestamps (in seconds)")},
     {NULL}
 };
 
@@ -108,6 +110,22 @@ static int media_init(struct ngl_node *node)
     struct ngl_node *anim_node = s->anim;
     if (anim_node) {
         struct animation *anim = anim_node->priv_data;
+
+        if (s->ts_list) {
+            if (anim->nb_animkf != 2) {
+                LOG(ERROR, "A 2 linear key-frame time animation is required when using a PTS buffer");
+                return -1;
+            }
+
+            const struct animkeyframe *kfa = anim->animkf[0]->priv_data;
+            const struct animkeyframe *kfb = anim->animkf[1]->priv_data;
+            const double out_duration = kfb->time - kfa->time;
+            if (!out_duration) {
+                LOG(ERROR, "Invalid zero duration computed through time remapping");
+                return -1;
+            }
+            s->ts_scale = s->nb_ts_list / out_duration;
+        }
 
         // Sanity checks for time animation keyframe
         double prev_media_time = 0;
@@ -213,7 +231,10 @@ static int media_update(struct ngl_node *node, double t)
             const struct animkeyframe *kf0 = anim->animkf[0]->priv_data;
             const double initial_seek = kf0->scalar;
 
-            if (anim->nb_animkf == 1) {
+            if (s->nb_ts_list) {
+                const int pts_pos = NGLI_MIN(media_time * s->ts_scale, s->nb_ts_list - 1);
+                media_time = s->ts_list[pts_pos];
+            } else if (anim->nb_animkf == 1) {
                 media_time = t - kf0->time;
             } else {
                 int ret = ngli_node_update(anim_node, t);
