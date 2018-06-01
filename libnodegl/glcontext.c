@@ -30,8 +30,12 @@
 #include "utils.h"
 #include "glincludes.h"
 
+#ifdef VULKAN_BACKEND
+// TODO
+#else
 #include "gldefinitions_data.h"
 #include "glfeatures_data.h"
+#endif
 
 #ifdef HAVE_PLATFORM_GLX
 extern const struct glcontext_class ngli_glcontext_x11_class;
@@ -53,6 +57,10 @@ extern const struct glcontext_class ngli_glcontext_eagl_class;
 extern const struct glcontext_class ngli_glcontext_wgl_class;
 #endif
 
+#ifdef HAVE_PLATFORM_VULKAN
+extern const struct glcontext_class ngli_glcontext_vulkan_class;
+#endif
+
 static const struct glcontext_class *glcontext_class_map[] = {
 #ifdef HAVE_PLATFORM_GLX
     [NGL_GLPLATFORM_GLX] = &ngli_glcontext_x11_class,
@@ -69,12 +77,19 @@ static const struct glcontext_class *glcontext_class_map[] = {
 #ifdef HAVE_PLATFORM_WGL
     [NGL_GLPLATFORM_WGL] = &ngli_glcontext_wgl_class,
 #endif
+#ifdef HAVE_PLATFORM_VULKAN
+    [NGL_GLPLATFORM_VULKAN] = &ngli_glcontext_vulkan_class,
+#endif
 };
 
 static int glcontext_choose_platform(int platform)
 {
     if (platform != NGL_GLPLATFORM_AUTO)
         return platform;
+
+#if defined(VULKAN_BACKEND)
+    return NGL_GLPLATFORM_VULKAN;
+#endif
 
 #if defined(TARGET_LINUX)
     return NGL_GLPLATFORM_GLX;
@@ -97,7 +112,9 @@ static int glcontext_choose_backend(int backend)
     if (backend != NGL_BACKEND_AUTO)
         return backend;
 
-#if defined(TARGET_IPHONE) || defined(TARGET_ANDROID)
+#if defined(VULKAN_BACKEND)
+    return NGL_BACKEND_VULKAN;
+#elif defined(TARGET_IPHONE) || defined(TARGET_ANDROID)
     return NGL_BACKEND_OPENGLES;
 #else
     return NGL_BACKEND_OPENGL;
@@ -139,6 +156,7 @@ struct glcontext *ngli_glcontext_new(const struct ngl_config *config)
     glcontext->height = config->height;
     glcontext->samples = config->samples;
     glcontext->set_surface_pts = config->set_surface_pts;
+    memcpy(glcontext->clear_color, config->clear_color, sizeof(config->clear_color));
 
     if (glcontext->offscreen && (glcontext->width <= 0 || glcontext->height <= 0)) {
         LOG(ERROR,
@@ -169,6 +187,7 @@ fail:
     return NULL;
 }
 
+#ifndef VULKAN_BACKEND
 static int glcontext_load_functions(struct glcontext *glcontext)
 {
     const struct glfunctions *gl = &glcontext->funcs;
@@ -358,9 +377,11 @@ static int glcontext_probe_settings(struct glcontext *glcontext)
 
     return 0;
 }
+#endif
 
 int ngli_glcontext_load_extensions(struct glcontext *glcontext)
 {
+#ifndef VULKAN_BACKEND
     int ret = glcontext_load_functions(glcontext);
     if (ret < 0)
         return ret;
@@ -376,6 +397,7 @@ int ngli_glcontext_load_extensions(struct glcontext *glcontext)
     ret = glcontext_probe_settings(glcontext);
     if (ret < 0)
         return ret;
+#endif
 
     return 0;
 }
@@ -464,6 +486,7 @@ void *ngli_glcontext_get_texture_cache(struct glcontext *glcontext)
     return texture_cache;
 }
 
+#ifndef VULKAN_BACKEND
 int ngli_glcontext_check_extension(const char *extension, const char *extensions)
 {
     if (!extension || !extensions)
@@ -519,3 +542,4 @@ int ngli_glcontext_check_gl_error(const struct glcontext *glcontext, const char 
 
     return error;
 }
+#endif

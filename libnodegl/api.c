@@ -63,12 +63,16 @@ static int cmd_reconfigure(struct ngl_ctx *s, void *arg)
 
     const int *viewport = config->viewport;
     if (viewport[2] > 0 && viewport[3] > 0) {
+#ifndef VULKAN_BACKEND
         ngli_glViewport(s->glcontext, viewport[0], viewport[1], viewport[2], viewport[3]);
+#endif
         memcpy(current_config->viewport, config->viewport, sizeof(config->viewport));
     }
 
+#ifndef VULKAN_BACKEND
     const float *rgba = config->clear_color;
     ngli_glClearColor(s->glcontext, rgba[0], rgba[1], rgba[2], rgba[3]);
+#endif
     memcpy(current_config->clear_color, config->clear_color, sizeof(config->clear_color));
 
     return 0;
@@ -93,6 +97,9 @@ static int cmd_configure(struct ngl_ctx *s, void *arg)
     if (ret < 0)
         return ret;
 
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     s->glstate = ngli_glstate_create(s->glcontext);
     if (!s->glstate)
         return -1;
@@ -103,6 +110,7 @@ static int cmd_configure(struct ngl_ctx *s, void *arg)
 
     const float *rgba = config->clear_color;
     ngli_glClearColor(s->glcontext, rgba[0], rgba[1], rgba[2], rgba[3]);
+#endif
 
     return 0;
 }
@@ -137,10 +145,41 @@ static int cmd_set_scene(struct ngl_ctx *s, void *arg)
 
 static int cmd_prepare_draw(struct ngl_ctx *s, void *arg)
 {
+    int ret;
     const double t = *(double *)arg;
-    const struct glcontext *gl = s->glcontext;
 
+#ifdef VULKAN_BACKEND
+    struct glcontext *vk = s->glcontext;
+
+    // XXX: store it in context
+    VkQueue present_queue;
+    vkGetDeviceQueue(vk->device, vk->queue_family_present_id, 0, &present_queue);
+
+    vkQueueWaitIdle(present_queue);
+
+    VkResult vkret = vkAcquireNextImageKHR(vk->device, vk->swapchain, UINT64_MAX,
+                                           vk->sem_img_avail, NULL, &vk->img_index);
+
+    if (vkret == VK_ERROR_OUT_OF_DATE_KHR) {
+        LOG(ERROR, "ACQUIRE OUT OF DATE");
+        ret = ngli_glcontext_resize(s->glcontext, 0, 0);
+    } else if (vkret == VK_SUBOPTIMAL_KHR) {
+        LOG(ERROR, "ACQUIRE SUBOPTIMAL");
+        ret = ngli_glcontext_resize(s->glcontext, 0, 0);
+    } else if (vkret != VK_SUCCESS) {
+        LOG(ERROR, "failed to acquire image");
+        ret = -1;
+    } else {
+        ret = 0;
+    }
+
+    if (ret < 0)
+        return ret;
+
+#else
+    const struct glcontext *gl = s->glcontext;
     ngli_glClear(gl, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+#endif
 
     struct ngl_node *scene = s->scene;
     if (!scene) {
@@ -148,7 +187,7 @@ static int cmd_prepare_draw(struct ngl_ctx *s, void *arg)
     }
 
     LOG(DEBUG, "prepare scene %s @ t=%f", scene->name, t);
-    int ret = ngli_node_visit(scene, 1, t);
+    ret = ngli_node_visit(scene, 1, t);
     if (ret < 0)
         return ret;
 
@@ -177,8 +216,12 @@ static int cmd_draw(struct ngl_ctx *s, void *arg)
         ngli_node_draw(s->scene);
     }
 end:
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     if (ret == 0 && ngli_glcontext_check_gl_error(gl, __FUNCTION__))
         ret = -1;
+#endif
 
     if (gl->set_surface_pts)
         ngli_glcontext_set_surface_pts(gl, t);
@@ -192,7 +235,11 @@ end:
 static int cmd_stop(struct ngl_ctx *s, void *arg)
 {
     ngli_glcontext_freep(&s->glcontext);
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     ngli_glstate_freep(&s->glstate);
+#endif
     return 0;
 }
 
@@ -281,6 +328,13 @@ int ngl_configure(struct ngl_ctx *s, struct ngl_config *config)
         return reconfigure_ios(s, config);
 #else
         return dispatch_cmd(s, cmd_reconfigure, config);
+#endif
+
+#ifdef VULKAN_BACKEND
+    if (config->wrapped) {
+        LOG(ERROR, "wrapped mode unsupported with Vulkan");
+        return -1;
+    }
 #endif
 
     s->has_thread = !config->wrapped;
