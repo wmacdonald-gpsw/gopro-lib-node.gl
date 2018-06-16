@@ -11,6 +11,8 @@ from pynodegl import (
         BufferVec2,
         BufferVec3,
         Geometry,
+        GraphicConfig,
+        Group,
         Program,
         Quad,
         Render,
@@ -56,6 +58,77 @@ def noise1d(cfg, ndim=4, nb_layers=6, lacunarity=2.0, gain=0.5):
     render.update_uniforms(gain=UniformFloat(gain))
 
     return render
+
+
+@scene(ndim={'type': 'range', 'range': [1,8]},
+       nb_layers={'type': 'range', 'range': [1,8]},
+       lacunarity={'type': 'range', 'range': [0.01, 10], 'unit_base': 100},
+       gain={'type': 'range', 'range': [0.01, 10], 'unit_base': 100},
+       ref_color={'type': 'color'},
+       nb_mountains={'type': 'range', 'range': [1, 10]})
+def mountain(cfg, ndim=2, nb_layers=6, lacunarity=2.0, gain=0.5,
+             ref_color=(0,.4,.5,1.0), nb_mountains=5):
+    random.seed(0)
+    random_dim = 1<<ndim
+    cfg.aspect_ratio = (16, 9)
+    #cfg.duration *= nb_mountains
+
+    def get_rand():
+        return array.array('f', [random.uniform(0, 1) for x in range(random_dim)])
+
+    print random_dim
+
+    quad = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    prog = Program(fragment=get_frag('mountain'))
+
+    mountains = []
+    for i in range(nb_mountains):
+
+        white = (1.0, 1.0, 1.0, 1.0)
+        black = (0.0, 0.0, 0.0, 1.0)
+        mix = lambda a, b, x: x*a + (1.0-x)*b
+
+        if i < nb_mountains/2:
+            c0, c1 = ref_color, white
+            f = (i + 1) / float(nb_mountains/2 + 1)
+        else:
+            c0, c1 = black, ref_color
+            f = (i - nb_mountains/2) / float(nb_mountains/2 + 1)
+        mcolor = [mix(a, b, f) for a, b in zip(c0, c1)]
+
+        ucolor0 = UniformVec4(value=mcolor)
+        ucolor1 = UniformVec4(value=(0,0,0,0))
+
+        random_buf = BufferFloat(data=get_rand())
+        random_tex = Texture2D(data_src=random_buf, width=random_dim, height=1)
+
+        utime_animkf = [AnimKeyFrameFloat(0, 0),
+                        AnimKeyFrameFloat(cfg.duration, (1))]
+        utime = UniformFloat(anim=AnimatedFloat(utime_animkf))
+
+        render = Render(quad, prog)
+        render.update_textures(tex0=random_tex)
+        render.update_uniforms(dim=UniformInt(random_dim))
+        render.update_uniforms(nb_layers=UniformInt(nb_layers))
+        render.update_uniforms(time=utime)
+        render.update_uniforms(lacunarity=UniformFloat(lacunarity))
+        render.update_uniforms(gain=UniformFloat(gain))
+        render.update_uniforms(color0=ucolor0)
+        render.update_uniforms(color1=ucolor1)
+
+        #lacunarity /= 1.01
+
+        mountains.append(render)
+
+    group = Group(children=mountains)
+    blend = GraphicConfig(group,
+                          blend=True,
+                          blend_src_factor='src_alpha',
+                          blend_dst_factor='one_minus_src_alpha',
+                          blend_src_factor_a='zero',
+                          blend_dst_factor_a='one')
+    return blend
+
 
 @scene(n={'type': 'range', 'range': [1,100000]},
        gauss={'type': 'bool'})
