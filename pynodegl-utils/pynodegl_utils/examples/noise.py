@@ -19,6 +19,7 @@ from pynodegl import (
         Rotate,
         Texture2D,
         UniformFloat,
+        UniformVec3,
         UniformVec4,
         UniformInt,
 )
@@ -67,11 +68,11 @@ def noise1d(cfg, ndim=4, nb_layers=6, lacunarity=2.0, gain=0.5):
        ref_color={'type': 'color'},
        nb_mountains={'type': 'range', 'range': [1, 10]})
 def mountain(cfg, ndim=3, nb_layers=6, lacunarity=2.0, gain=0.5,
-             ref_color=(0,.4,.5,1.0), nb_mountains=5):
+             ref_color=(0.5,.75,.75,1.0), nb_mountains=6):
     random.seed(0)
     random_dim = 1<<ndim
     cfg.aspect_ratio = (16, 9)
-    cfg.duration = nb_mountains * 10.
+    #cfg.duration = nb_mountains ** 2
 
     def get_rand():
         return array.array('f', [random.uniform(0, 1) for x in range(random_dim)])
@@ -88,10 +89,10 @@ def mountain(cfg, ndim=3, nb_layers=6, lacunarity=2.0, gain=0.5,
 
         yoffset = (nb_mountains-i-1)/float(nb_mountains-1) * (1.0 - hscale)
 
-        print 'hscale=%g yoffset=%g' % (hscale, yoffset)
+        #print 'hscale=%g yoffset=%g' % (hscale, yoffset)
 
-        white = (1.0, 1.0, 1.0, 1.0)
-        black = (0.0, 0.0, 0.0, 1.0)
+        white = (1.0, 1.0, 1.0)
+        black = (0.0, 0.0, 0.0)
         mix = lambda a, b, x: x*a + (1.0-x)*b
 
         if i < nb_mountains/2:
@@ -99,27 +100,23 @@ def mountain(cfg, ndim=3, nb_layers=6, lacunarity=2.0, gain=0.5,
             f = (i + 1) / float(nb_mountains/2 + 1)
         else:
             c0, c1 = black, ref_color
-            f = (i - nb_mountains/2) / float(nb_mountains/2 + 1)
+            f = (i - nb_mountains/2) / float((nb_mountains-1)/2)
+        print '%d/%d: %f' % (i+1, nb_mountains, f)
         mcolor = [mix(a, b, f) for a, b in zip(c0, c1)]
-
-        ucolor1 = UniformVec4(value=mcolor)
-        ucolor0 = UniformVec4(value=(0,0,0,0))
 
         random_buf = BufferFloat(data=get_rand())
         random_tex = Texture2D(data_src=random_buf, width=random_dim, height=1)
 
         utime_animkf = [AnimKeyFrameFloat(0, 0),
-                        AnimKeyFrameFloat(cfg.duration, (i+1))]
+                        AnimKeyFrameFloat(cfg.duration, 1)]
         utime = UniformFloat(anim=AnimatedFloat(utime_animkf))
 
-        uyoffset_animkf = [AnimKeyFrameFloat(0, yoffset/2.),
-                           AnimKeyFrameFloat(cfg.duration/2.0, yoffset),
-                           AnimKeyFrameFloat(cfg.duration, yoffset/2.),
-                           #AnimKeyFrameFloat(3.*cfg.duration/5.0, yoffset),
-                           #AnimKeyFrameFloat(4.*cfg.duration/5.0, yoffset/2.),
-                           #AnimKeyFrameFloat(5.*cfg.duration/5.0, yoffset),
-                           ]
-        uyoffset = UniformFloat(anim=AnimatedFloat(uyoffset_animkf))
+        #uyoffset_animkf = [AnimKeyFrameFloat(0, yoffset/2.),
+        #                   AnimKeyFrameFloat(cfg.duration/2.0, yoffset, 'exp_in_out'),
+        #                   AnimKeyFrameFloat(cfg.duration, yoffset/2., 'exp_out_in'),
+        #                   ]
+        #uyoffset = UniformFloat(anim=AnimatedFloat(uyoffset_animkf))
+        uyoffset = UniformFloat(value=yoffset)
 
         render = Render(quad, prog)
         render.update_textures(tex0=random_tex)
@@ -128,8 +125,7 @@ def mountain(cfg, ndim=3, nb_layers=6, lacunarity=2.0, gain=0.5,
         render.update_uniforms(time=utime)
         render.update_uniforms(lacunarity=UniformFloat(lacunarity))
         render.update_uniforms(gain=UniformFloat(gain))
-        render.update_uniforms(color0=ucolor0)
-        render.update_uniforms(color1=ucolor1)
+        render.update_uniforms(mcolor=UniformVec3(mcolor))
         render.update_uniforms(yoffset=uyoffset)
         render.update_uniforms(hscale=UniformFloat(hscale))
 

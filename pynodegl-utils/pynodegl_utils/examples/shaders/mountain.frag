@@ -9,8 +9,7 @@ uniform float time;
 
 uniform float gain;
 uniform float lacunarity;
-uniform vec4 color0;
-uniform vec4 color1;
+uniform vec3 mcolor;
 uniform float yoffset;
 uniform float hscale;
 
@@ -55,8 +54,9 @@ void main(void)
     }
     float n = sum / max_amp;
     float h = n*hscale + yoffset;
-    float cmix = step(1.0 - var_tex0_coord.y, h);
-    vec4 color = mix(color0, color1, cmix);
+    float alpha_blend_h = 0.002;
+    float y = 1.0 - var_tex0_coord.y;
+    float alpha = smoothstep(y-alpha_blend_h, y+alpha_blend_h, h);
 
-    gl_FragColor = color;
+    gl_FragColor = vec4(mcolor, alpha);
 }
