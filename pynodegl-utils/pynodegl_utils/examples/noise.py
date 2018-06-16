@@ -67,17 +67,15 @@ def noise1d(cfg, ndim=4, nb_layers=6, lacunarity=2.0, gain=0.5):
        gain={'type': 'range', 'range': [0.01, 10], 'unit_base': 100},
        ref_color={'type': 'color'},
        nb_mountains={'type': 'range', 'range': [1, 10]})
-def mountain(cfg, ndim=3, nb_layers=6, lacunarity=2.0, gain=0.5,
+def mountain(cfg, ndim=3, nb_layers=7, lacunarity=2.0, gain=0.5,
              ref_color=(0.5,.75,.75,1.0), nb_mountains=6):
     random.seed(0)
     random_dim = 1<<ndim
     cfg.aspect_ratio = (16, 9)
-    #cfg.duration = nb_mountains ** 2
+    cfg.duration = nb_mountains ** 2
 
     def get_rand():
         return array.array('f', [random.uniform(0, 1) for x in range(random_dim)])
-
-    print random_dim
 
     quad = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     prog = Program(fragment=get_frag('mountain'))
@@ -108,15 +106,15 @@ def mountain(cfg, ndim=3, nb_layers=6, lacunarity=2.0, gain=0.5,
         random_tex = Texture2D(data_src=random_buf, width=random_dim, height=1)
 
         utime_animkf = [AnimKeyFrameFloat(0, 0),
-                        AnimKeyFrameFloat(cfg.duration, 1)]
+                        AnimKeyFrameFloat(cfg.duration, i+1)]
         utime = UniformFloat(anim=AnimatedFloat(utime_animkf))
 
-        #uyoffset_animkf = [AnimKeyFrameFloat(0, yoffset/2.),
-        #                   AnimKeyFrameFloat(cfg.duration/2.0, yoffset, 'exp_in_out'),
-        #                   AnimKeyFrameFloat(cfg.duration, yoffset/2., 'exp_out_in'),
-        #                   ]
-        #uyoffset = UniformFloat(anim=AnimatedFloat(uyoffset_animkf))
-        uyoffset = UniformFloat(value=yoffset)
+        uyoffset_animkf = [AnimKeyFrameFloat(0, yoffset/2.),
+                           AnimKeyFrameFloat(cfg.duration/2.0, yoffset),
+                           AnimKeyFrameFloat(cfg.duration, yoffset/2.),
+                           ]
+        uyoffset = UniformFloat(anim=AnimatedFloat(uyoffset_animkf))
+        #uyoffset = UniformFloat(value=yoffset)
 
         render = Render(quad, prog)
         render.update_textures(tex0=random_tex)
@@ -128,8 +126,6 @@ def mountain(cfg, ndim=3, nb_layers=6, lacunarity=2.0, gain=0.5,
         render.update_uniforms(mcolor=UniformVec3(mcolor))
         render.update_uniforms(yoffset=uyoffset)
         render.update_uniforms(hscale=UniformFloat(hscale))
-
-        lacunarity *= 1.02
 
         mountains.append(render)
 
