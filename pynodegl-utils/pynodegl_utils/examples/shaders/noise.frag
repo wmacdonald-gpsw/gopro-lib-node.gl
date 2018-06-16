@@ -12,8 +12,6 @@ uniform float time;
 
 uniform float gain;
 uniform float lacunarity;
-uniform vec4 color0;
-uniform vec4 color1;
 
 float f(float t)
 {
@@ -179,8 +177,8 @@ void main(void)
         }
         float n = sum / max_amp;
 
-        float cmix = 1.0 - step(n, var_tex0_coord.y);
-        color = mix(color0, color1, cmix);
+        float c = step(n, var_tex0_coord.y);
+        color = vec4(vec3(c), 1.0);
     } else if (profile == 2) { // noise 2d
 #if 0
         float sum = 0.0;
