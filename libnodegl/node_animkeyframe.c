@@ -75,12 +75,14 @@ static const struct param_choices easing_choices = {
 
         {"bounce_in",        EASING_BOUNCE_IN,        .desc=NGLI_DOCSTRING("bouncing from right to left 4 times")},
         {"bounce_out",       EASING_BOUNCE_OUT,       .desc=NGLI_DOCSTRING("diagonally mirrored version of `bounce_in()`")},
+
         {"elastic_in",       EASING_ELASTIC_IN,       .desc=NGLI_DOCSTRING("elastic effect from weak to strong")},
-        {"elastic_out",      EASING_ELASTIC_OUT,      .desc=NGLI_DOCSTRING("mirrored elastic effect")},
-        {"back_in",          EASING_BACK_IN,          .desc=NGLI_DOCSTRING("")},
-        {"back_out",         EASING_BACK_OUT,         .desc=NGLI_DOCSTRING("")},
-        {"back_in_out",      EASING_BACK_IN_OUT,      .desc=NGLI_DOCSTRING("")},
-        {"back_out_in",      EASING_BACK_OUT_IN,      .desc=NGLI_DOCSTRING("")},
+        {"elastic_out",      EASING_ELASTIC_OUT,      .desc=NGLI_DOCSTRING("mirrored `elastic_in` effect")},
+
+        {"back_in",          EASING_BACK_IN,          .desc=NGLI_DOCSTRING("mirrored `back_out` effect")},
+        {"back_out",         EASING_BACK_OUT,         .desc=NGLI_DOCSTRING("overstep target value and smoothly converge back to it")},
+        {"back_in_out",      EASING_BACK_IN_OUT,      .desc=NGLI_DOCSTRING("combination of `back_in` then `back_out`")},
+        {"back_out_in",      EASING_BACK_OUT_IN,      .desc=NGLI_DOCSTRING("combination of `back_out` then `back_in`")},
         {NULL}
     }
 };

@@ -680,11 +680,11 @@ Constant | Description
 `bounce_in` | bouncing from right to left 4 times
 `bounce_out` | diagonally mirrored version of `bounce_in()`
 `elastic_in` | elastic effect from weak to strong
-`elastic_out` | mirrored elastic effect
-`back_in` | 
-`back_out` | 
-`back_in_out` | 
-`back_out_in` | 
+`elastic_out` | mirrored `elastic_in` effect
+`back_in` | mirrored `back_out` effect
+`back_out` | overstep target value and smoothly converge back to it
+`back_in_out` | combination of `back_in` then `back_out`
+`back_out_in` | combination of `back_out` then `back_in`
 
 ## buffer_usage choices
 
