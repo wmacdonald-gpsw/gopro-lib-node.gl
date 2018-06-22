@@ -276,8 +276,7 @@ static int buffer_init(struct ngl_node *node)
 static int buffer_update(struct ngl_node *node, double t)
 {
     struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *glcontext = ctx->glcontext;
-    const struct glfunctions *gl = &glcontext->funcs;
+    struct glcontext *gl = ctx->glcontext;
 
     struct buffer *s = node->priv_data;
     struct ngl_node *anode = s->time_anim;
