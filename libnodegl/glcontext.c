@@ -307,14 +307,15 @@ static int glcontext_probe_extensions(struct glcontext *glcontext)
 
         int maj_version = es ? glfeature->maj_es_version : glfeature->maj_version;
         int min_version = es ? glfeature->min_es_version : glfeature->min_version;
+        const char **extensions = es ? glfeature->es_extensions : glfeature->extensions;
 
-        if (!maj_version && !min_version)
+        if (!maj_version && !min_version && (!extensions || !*extensions))
             continue;
 
-        if (!(glcontext->major_version >  maj_version ||
+        if ((!maj_version && !min_version) ||
+            !(glcontext->major_version >  maj_version ||
              (glcontext->major_version == maj_version &&
               glcontext->minor_version >= min_version))) {
-            const char **extensions = es ? glfeature->es_extensions : glfeature->extensions;
             if (!glcontext_check_extensions(glcontext, extensions))
                 continue;
         }
