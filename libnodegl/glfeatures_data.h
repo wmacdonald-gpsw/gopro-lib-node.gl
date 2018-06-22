@@ -149,8 +149,6 @@ static const struct glfeature {
     }, {
         .name           = "ext_disjoint_timer_query",
         .flag           = NGLI_FEATURE_EXT_DISJOINT_TIMER_QUERY,
-        .maj_es_version = 2,
-        .min_es_version = 0,
         .es_extensions  = (const char*[]){"GL_EXT_disjoint_timer_query", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(BeginQueryEXT),
                                            OFFSET(EndQueryEXT),
