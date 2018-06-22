@@ -623,3 +623,18 @@ def mountain(cfg, ndim=3, nb_layers=7,
                           blend_src_factor_a='zero',
                           blend_dst_factor_a='one')
     return blend
+
+
+@scene()
+def f(cfg):
+    cfg.duration = 5
+    cfg.aspect_ratio = (1, 1)
+    q = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    p = Program(fragment=get_frag('test'))
+    r = Render(q, p)
+
+    utime_animkf = [AnimKeyFrameFloat(0, 0),
+                    AnimKeyFrameFloat(cfg.duration, 1)]
+    utime = UniformFloat(anim=AnimatedFloat(utime_animkf))
+    r.update_uniforms(time=utime)
+    return r
