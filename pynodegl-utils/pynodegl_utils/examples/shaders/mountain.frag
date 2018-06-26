@@ -22,7 +22,7 @@ float f(float t)
 float pick_rand1d(float pos, float off)
 {
     float value_point = fract(pos + off);
-    float value = texture2D(tex0_sampler, vec2(value_point, 0)).x;
+    float value = texture2D(tex0_sampler, vec2(value_point, 0.0)).x;
     return value;
 }
 
@@ -31,7 +31,7 @@ float noise1d(float pos)
     float d = float(dim);
     float s = 1.0 / d;
     float v0 = pick_rand1d(pos, 0.0 * s);
-    float v1 = pick_rand1d(pos, 1.0 * s);
+    float v1 = pick_rand1d(pos, 0.99 * s);
     float t = pos*d - floor(pos*d);
     float tx = f(t);
     float nx = mix(v0, v1, tx);
