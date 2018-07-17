@@ -90,7 +90,6 @@
         - [data, data]
         - [filename, string]
         - [stride, int]
-        - [usage, select]
 
 - BufferBVec2: _Buffer
 
@@ -245,8 +244,8 @@
 
 - Program:
     optional:
-        - [vertex, string]
-        - [fragment, string]
+        - [vertex, data]
+        - [fragment, data]
 
 - Quad:
     optional:
@@ -301,8 +300,6 @@
         - [mag_filter, select]
         - [wrap_s, select]
         - [wrap_t, select]
-        - [data_src, Node]
-        - [access, select]
         - [direct_rendering, bool]
 
 - Texture3D:
@@ -316,8 +313,6 @@
         - [wrap_s, select]
         - [wrap_t, select]
         - [wrap_r, select]
-        - [data_src, Node]
-        - [access, select]
 
 - TimeRangeFilter:
     constructors:
