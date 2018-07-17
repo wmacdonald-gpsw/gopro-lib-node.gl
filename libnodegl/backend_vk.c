@@ -47,11 +47,6 @@ static const char *my_device_extension_names[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 };
 
-#if ENABLE_DEBUG
-static const char *my_layers[] = {
-    "VK_LAYER_LUNARG_standard_validation",
-};
-
 static const char *vk_res2str(VkResult res)
 {
     switch (res) {
@@ -87,6 +82,11 @@ static const char *vk_res2str(VkResult res)
         default:                                return "unknown";
     }
 }
+
+#if ENABLE_DEBUG
+static const char *my_layers[] = {
+    "VK_LAYER_LUNARG_standard_validation",
+};
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback(VkDebugReportFlagsEXT flags,
                                                      VkDebugReportObjectTypeEXT obj_type,
