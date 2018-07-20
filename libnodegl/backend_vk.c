@@ -26,6 +26,16 @@
 // TODO: add more
 #if defined(TARGET_LINUX)
 # define VK_USE_PLATFORM_XLIB_KHR
+#elif defined(TARGET_DARWIN)
+# define VK_USE_PLATFORM_MACOS_MVK
+#elif defined(TARGET_IPHONE)
+# define VK_USE_PLATFORM_IOS_MVK
+#endif
+
+#if defined(TARGET_DARWIN) || defined(TARGET_IPHONE)
+#define USE_MOLTENVK 1
+#else
+#define USE_MOLTENVK 0
 #endif
 
 #include <vulkan/vulkan.h>
@@ -34,13 +44,13 @@
 #include "glcontext.h"
 #include "log.h"
 
-#define ENABLE_DEBUG 1
+#define ENABLE_DEBUG (1 && !USE_MOLTENVK)
 
 static const VkApplicationInfo app_info = {
     .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
     .pEngineName = "node.gl",
     .engineVersion = NODEGL_VERSION_INT,
-    .apiVersion = VK_API_VERSION_1_1, // 1.0?
+    .apiVersion = USE_MOLTENVK ? VK_API_VERSION_1_0 : VK_API_VERSION_1_1,
 };
 
 static const char *my_device_extension_names[] = {
@@ -211,6 +221,12 @@ static VkResult probe_vulkan_extensions(struct glcontext *vk)
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
         if (!strcmp(ext_props[i].extensionName, VK_KHR_XLIB_SURFACE_EXTENSION_NAME))
             vk->surface_create_type = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+#elif defined(VK_USE_PLATFORM_MACOS_MVK)
+        if (!strcmp(ext_props[i].extensionName, VK_MVK_MACOS_SURFACE_EXTENSION_NAME))
+            vk->surface_create_type = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
+#elif defined(VK_USE_PLATFORM_IOS_MVK)
+        if (!strcmp(ext_props[i].extensionName, VK_MVK_IOS_SURFACE_EXTENSION_NAME))
+            vk->surface_create_type = VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK;
 #endif
     }
     free(ext_props);
@@ -824,6 +840,32 @@ static VkResult create_window_surface(struct glcontext *vk,
 
         ret = vkCreateXlibSurfaceKHR(vk->instance, &surface_create_info, NULL, surface);
 #endif
+    } else if (vk->surface_create_type == VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK) {
+#if defined(VK_USE_PLATFORM_MACOS_MVK)
+        VkMacOSSurfaceCreateInfoMVK surface_create_info = {
+            .sType = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK,
+            .pView = (const void *)window,
+        };
+
+        PFN_vkCreateMacOSSurfaceMVK vkCreateMacOSSurfaceMVK = vulkan_get_proc_addr(vk, "vkCreateMacOSSurfaceMVK");
+        if (!vkCreateMacOSSurfaceMVK)
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
+
+        ret = vkCreateMacOSSurfaceMVK(vk->instance, &surface_create_info, NULL, surface);
+#endif
+    } else if (vk->surface_create_type == VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK) {
+#if defined(VK_USE_PLATFORM_IOS_MVK)
+        VkIOSSurfaceCreateInfoMVK surface_create_info = {
+            .sType = VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK,
+            .pView = (const void *)window,
+        };
+
+        PFN_vkCreateIOSSurfaceMVK vkCreateIOSSurfaceMVK = vulkan_get_proc_addr(vk, "vkCreateIOSSurfaceMVK");
+        if (!vkCreateIOSSurfaceMVK)
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
+
+        ret = vkCreateIOSSurfaceMVK(vk->instance, &surface_create_info, NULL, surface);
+#endif
     } else {
         // TODO
         ngli_assert(0);
@@ -1128,6 +1170,7 @@ static int vk_destroy(struct ngl_ctx *s)
 
 const struct backend ngli_backend_vk = {
     .name         = "Vulkan",
+    .int_cfg_dp   = 1,
     .reconfigure  = vk_reconfigure,
     .configure    = vk_configure,
     .pre_draw     = vk_pre_draw,
