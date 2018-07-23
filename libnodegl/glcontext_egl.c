@@ -35,6 +35,7 @@
 #include "utils.h"
 
 #define EGL_PLATFORM_X11 0x31D5
+#define EGL_PLATFORM_WAYLAND 0x31D8
 
 struct egl_priv {
     EGLNativeDisplayType native_display;
@@ -69,28 +70,38 @@ static int egl_probe_android_presentation_time_ext(struct egl_priv *egl)
 }
 
 #if defined(TARGET_LINUX)
+static int egl_probe_platform_functions(struct egl_priv *egl)
+{
+    egl->GetPlatformDisplay = (void *)eglGetProcAddress("eglGetPlatformDisplay");
+    if (!egl->GetPlatformDisplay)
+        egl->GetPlatformDisplay = (void *)eglGetProcAddress("eglGetPlatformDisplayEXT");
+    if (!egl->GetPlatformDisplay) {
+        LOG(ERROR, "could not retrieve eglGetPlatformDisplay()");
+        return -1;
+    }
+    return 1;
+}
+
 static int egl_probe_platform_x11_ext(struct egl_priv *egl)
 {
     char const *extensions = eglQueryString(egl->display, EGL_EXTENSIONS);
     if (!extensions)
         return 0;
 
-    if (ngli_glcontext_check_extension("EGL_KHR_platform_x11", extensions) ||
-        ngli_glcontext_check_extension("EGL_EXT_platform_x11", extensions)) {
-        egl->GetPlatformDisplay = (void *)eglGetProcAddress("eglGetPlatformDisplay");
-        if (!egl->GetPlatformDisplay)
-            egl->GetPlatformDisplay = (void *)eglGetProcAddress("eglGetPlatformDisplayEXT");
-        if (!egl->GetPlatformDisplay) {
-            LOG(ERROR, "could not retrieve eglGetPlatformDisplay()");
-            return -1;
-        }
-        return 1;
-    }
+    return ngli_glcontext_check_extension("EGL_KHR_platform_x11", extensions) ||
+           ngli_glcontext_check_extension("EGL_EXT_platform_x11", extensions);
+}
 
-    return 0;
+static int egl_probe_platform_wayland_ext(struct egl_priv *egl)
+{
+    char const *extensions = eglQueryString(egl->display, EGL_EXTENSIONS);
+    if (!extensions)
+        return 0;
+
+    return ngli_glcontext_check_extension("EGL_KHR_platform_wayland", extensions) ||
+           ngli_glcontext_check_extension("EGL_EXT_platform_wayland", extensions);
 }
 #endif
-
 
 static int egl_set_native_display(struct egl_priv *egl, uintptr_t native_display)
 {
@@ -116,11 +127,21 @@ static EGLDisplay egl_get_display(struct egl_priv *egl, EGLNativeDisplayType nat
 #if defined(TARGET_ANDROID)
     return eglGetDisplay(native_display);
 #elif defined(TARGET_LINUX)
-    /* XXX: only X11 is supported for now */
-    int ret = egl_probe_platform_x11_ext(egl);
-    if (ret <= 0)
-        return EGL_NO_DISPLAY;
-    return egl->GetPlatformDisplay(EGL_PLATFORM_X11, native_display, NULL);
+    int ret = egl_probe_platform_functions(egl);
+    if (ret < 0)
+        return ret;
+
+    if (ctx->platform == NGL_PLATFORM_XLIB) {
+        ret = egl_probe_platform_x11_ext(egl);
+        if (ret <= 0)
+            return EGL_NO_DISPLAY;
+        return egl->GetPlatformDisplay(EGL_PLATFORM_X11, native_display, NULL);
+    } else {
+        ret = egl_probe_platform_wayland_ext(egl);
+        if (ret <= 0)
+            return EGL_NO_DISPLAY;
+        return egl->GetPlatformDisplay(EGL_PLATFORM_WAYLAND, native_display, NULL);
+    }
 #else
     return EGL_NO_DISPLAY;
 #endif
