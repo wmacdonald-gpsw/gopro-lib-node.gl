@@ -635,7 +635,9 @@ def vktest(cfg):
     program = Program(fragment=get_vk_frag('vktest'),
                       vertex=get_vk_vert('vktest'))
 
-    for i in range(3):
+    color_write_masks = ['r+g+a', 'g+b+a', 'r+b+a']
+
+    for i, color_write_mask in enumerate(color_write_masks):
         colors_data = array.array('f', [1.0, 0.0, 0.0,
                                         0.0, 1.0, 0.0,
                                         0.0, 0.0, 1.0,
@@ -663,15 +665,12 @@ def vktest(cfg):
         rotate = Rotate(render, anim=AnimatedFloat(animkf))
 
         tr = [random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)]
-        print tr
         node = Translate(rotate, tr)
+        node = GraphicConfig(node, color_write_mask=color_write_mask)
 
         group.add_children(node)
 
-    gc = GraphicConfig(group,
-                       color_write_mask='r+g+a')
-
-    camera = Camera(gc)
+    camera = Camera(group)
     camera.set_eye(0.0, 0.0, 4.0)
     camera.set_center(0.0, 0.0, 0.0)
     camera.set_up(0.0, 1.0, 0.0)
