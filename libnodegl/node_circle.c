@@ -104,7 +104,7 @@ static int circle_init(struct ngl_node *node)
         goto end;
 
 #ifdef VULKAN_BACKEND
-        // TODO
+    s->draw_mode = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
 #else
     s->draw_mode = GL_TRIANGLE_FAN;
 #endif

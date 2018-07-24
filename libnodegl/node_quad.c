@@ -59,7 +59,6 @@ static const struct node_param quad_params[] = {
 
 static int quad_init(struct ngl_node *node)
 {
-    LOG(ERROR, "quad init");
     struct geometry *s = node->priv_data;
 
     const GLfloat vertices[] = {
@@ -81,20 +80,16 @@ static int quad_init(struct ngl_node *node)
                                                        NB_VERTICES,
                                                        sizeof(vertices),
                                                        (void *)vertices);
-    if (!s->vertices_buffer) {
-        LOG(ERROR, "no vertices");
+    if (!s->vertices_buffer)
         return -1;
-    }
 
     s->uvcoords_buffer = ngli_geometry_generate_buffer(node->ctx,
                                                        NGL_NODE_BUFFERVEC2,
                                                        NB_VERTICES,
                                                        sizeof(uvs),
                                                        (void *)uvs);
-    if (!s->uvcoords_buffer) {
-        LOG(ERROR, "no uv coords");
+    if (!s->uvcoords_buffer)
         return -1;
-    }
 
     float normals[3 * NB_VERTICES];
     ngli_vec3_normalvec(normals,
@@ -110,23 +105,17 @@ static int quad_init(struct ngl_node *node)
                                                       NB_VERTICES,
                                                       sizeof(normals),
                                                       normals);
-    if (!s->normals_buffer) {
-        LOG(ERROR, "no normals");
+    if (!s->normals_buffer)
         return -1;
-    }
 
-
-#ifndef VULKAN_BACKEND
-    // FIXME
     s->indices_buffer = ngli_geometry_generate_indices_buffer(node->ctx,
                                                               NB_VERTICES);
-    if (!s->indices_buffer) {
-        LOG(ERROR, "no indices");
+    if (!s->indices_buffer)
         return -1;
-    }
-#endif
 
-#ifndef VULKAN_BACKEND
+#ifdef VULKAN_BACKEND
+    s->draw_mode = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
+#else
     s->draw_mode = GL_TRIANGLE_FAN;
 #endif
 

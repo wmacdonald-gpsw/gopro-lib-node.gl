@@ -91,7 +91,7 @@ static int triangle_init(struct ngl_node *node)
         return -1;
 
 #ifdef VULKAN_BACKEND
-    // TODO
+    s->draw_mode = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 #else
     s->draw_mode = GL_TRIANGLES;
 #endif
