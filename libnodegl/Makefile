@@ -99,6 +99,7 @@ LIB_OBJS += $(LIB_OBJS_ARCH_$(ARCH))
 
 ifeq ($(BACKEND),vk)
 LIB_OBJS += backend_vk.o            \
+            vk_spirv.o              \
 
 else
 LIB_OBJS += backend_gl.o            \
@@ -246,6 +247,12 @@ gl.xml:
 
 
 #
+# Vulkan default shader SPIR-V generation
+#
+update_vk_spirv:
+	$(PYTHON) gen_vk_spirv.py vk_spirv.c
+
+#
 # Tests
 #
 TESTS = asm             \
@@ -309,6 +316,6 @@ vksdk: $(VKSDK_TGZ)
 $(VKSDK_TGZ):
 	wget $(VKSDK_BASEURL)/$@
 
-.PHONY: all updatespecs clean install uninstall gen-gl-wrappers vksdk
+.PHONY: all updatespecs clean install uninstall gen-gl-wrappers vksdk update_vk_spirv
 
 -include $(LIB_DEPS)

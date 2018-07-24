@@ -29,6 +29,14 @@
 #include "nodes.h"
 #include "spirv.h"
 
+#ifdef VULKAN_BACKEND
+extern const int ngli_vk_default_frag_size;
+extern const char *ngli_vk_default_frag;
+
+extern const int ngli_vk_default_vert_size;
+extern const char *ngli_vk_default_vert;
+#else
+
 #ifdef TARGET_ANDROID
 static const char default_fragment_shader[] =
     "#version 100"                                                                      "\n"
@@ -85,6 +93,8 @@ static const char default_vertex_shader[] =
     "    var_normal = ngl_normal_matrix * ngl_normal;"                                  "\n"
     "    var_tex0_coord = (tex0_coord_matrix * vec4(ngl_uvcoord, 0, 1)).xy;"            "\n"
     "}";
+
+#endif
 
 #define OFFSET(x) offsetof(struct program, x)
 static const struct node_param program_params[] = {
@@ -216,6 +226,22 @@ static int program_init(struct ngl_node *node)
 #ifdef VULKAN_BACKEND
     struct glcontext *vk = ctx->glcontext;
     int ret;
+
+    if (!s->vert_data) {
+        s->vert_data_size = ngli_vk_default_vert_size;
+        s->vert_data = malloc(s->vert_data_size);
+        if (!s->vert_data)
+            return -1;
+        memcpy(s->vert_data, ngli_vk_default_vert, s->vert_data_size);
+    }
+
+    if (!s->frag_data) {
+        s->frag_data_size = ngli_vk_default_frag_size;
+        s->frag_data = malloc(s->frag_data_size);
+        if (!s->frag_data)
+            return -1;
+        memcpy(s->frag_data, ngli_vk_default_frag, s->frag_data_size);
+    }
 
     if ((ret = create_shader_module(&s->vert_shader, vk->device,
                                     s->vert_data, s->vert_data_size)) != VK_SUCCESS ||
