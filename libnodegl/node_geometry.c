@@ -138,7 +138,7 @@ static const struct node_param geometry_params[] = {
                   .flags=PARAM_FLAG_DOT_DISPLAY_FIELDNAME,
                   .desc=NGLI_DOCSTRING("normal vectors of each `vertices`")},
     {"indices",   PARAM_TYPE_NODE, OFFSET(indices_buffer),
-                  .node_types=(const int[]){NGL_NODE_BUFFERUBYTE, NGL_NODE_BUFFERUINT, NGL_NODE_BUFFERUSHORT, -1},
+                  .node_types=(const int[]){NGL_NODE_BUFFERUINT, NGL_NODE_BUFFERUSHORT, -1},
                   .flags=PARAM_FLAG_DOT_DISPLAY_FIELDNAME,
                   .desc=NGLI_DOCSTRING("indices defining the drawing order of the `vertices`, auto-generated if not set")},
     // XXX: rename to "topology"?
