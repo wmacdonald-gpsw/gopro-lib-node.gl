@@ -1375,7 +1375,13 @@ static void render_draw(struct ngl_node *node)
 
     const struct geometry *geometry = s->geometry->priv_data;
     const struct buffer *indices_buffer = geometry->indices_buffer->priv_data;
-    vkCmdBindIndexBuffer(cmd_buf, indices_buffer->vkbuf, 0, VK_INDEX_TYPE_UINT32); // FIXME type
+
+    const int index_node_type = geometry->indices_buffer->class->id;
+    ngli_assert(index_node_type == NGL_NODE_BUFFERUSHORT ||
+                index_node_type == NGL_NODE_BUFFERUINT);
+    VkIndexType index_type = index_node_type == NGL_NODE_BUFFERUINT ? VK_INDEX_TYPE_UINT32
+                                                                    : VK_INDEX_TYPE_UINT16;
+    vkCmdBindIndexBuffer(cmd_buf, indices_buffer->vkbuf, 0, index_type);
 
     if (s->nb_uniform_ids > 0) {
         update_uniforms(node);
