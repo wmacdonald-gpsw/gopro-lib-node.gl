@@ -101,7 +101,7 @@ class SceneCfg:
         'aspect_ratio': (16, 9),
         'duration': 30.0,
         'framerate': (60, 1),
-        'backend': 'gl',
+        'backend': 'vk',
         'samples': 0,
         'system': platform.system(),
         'files': [],
