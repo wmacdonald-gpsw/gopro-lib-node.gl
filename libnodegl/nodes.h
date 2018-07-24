@@ -450,6 +450,10 @@ struct render {
     VkDeviceSize offsets[64]; // FIXME alloc
     int nb_binds;
 
+    VkDescriptorPool descriptor_pool;
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorSet *descriptor_sets;
+
     uint32_t uniform_buffer_size;
     VkBuffer *uniform_buffers;
     VkDeviceMemory *uniform_device_memory;

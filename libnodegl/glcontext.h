@@ -92,10 +92,6 @@ struct glcontext {
     VkFence *fences;
     VkStructureType surface_create_type;
 
-    VkDescriptorPool descriptor_pool;
-    VkDescriptorSetLayout descriptor_set_layout;
-    VkDescriptorSet *descriptor_sets;
-
     uint32_t img_index;
 
     int nb_in_flight_frames;

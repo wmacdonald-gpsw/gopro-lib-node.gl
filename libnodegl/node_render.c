@@ -764,7 +764,7 @@ static VkResult create_graphics_pipeline(struct ngl_node *node)
     // TODO: only when uniform are used
     if (s->uniform_buffers) {
         pipeline_layout_create_info.setLayoutCount = 1;
-        pipeline_layout_create_info.pSetLayouts = &vk->descriptor_set_layout;
+        pipeline_layout_create_info.pSetLayouts = &s->descriptor_set_layout;
     }
 
     ret = vkCreatePipelineLayout(vk->device, &pipeline_layout_create_info, NULL,
@@ -792,6 +792,81 @@ static VkResult create_graphics_pipeline(struct ngl_node *node)
     return vkCreateGraphicsPipelines(vk->device, NULL, 1,
                                      &graphics_pipeline_create_info,
                                      NULL, &s->pipeline);
+}
+
+static VkResult create_descriptor_pool(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct render *s = node->priv_data;
+    struct glcontext *vk = ctx->glcontext;
+
+    // TODO: uniform specific
+    VkDescriptorPoolSize descriptor_pool_size = {
+        .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = vk->nb_framebuffers,
+    };
+
+    VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .poolSizeCount = 1,
+        .pPoolSizes = &descriptor_pool_size,
+        .maxSets = vk->nb_framebuffers,
+    };
+
+    return vkCreateDescriptorPool(vk->device, &descriptor_pool_create_info, NULL, &s->descriptor_pool);
+}
+
+static VkResult create_descriptor_sets(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct render *s = node->priv_data;
+    struct glcontext *vk = ctx->glcontext;
+
+    VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {
+        .binding = 0,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .descriptorCount = 1,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .pImmutableSamplers = NULL,
+    };
+
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 1,
+        .pBindings = &descriptor_set_layout_binding,
+    };
+
+    VkResult ret = vkCreateDescriptorSetLayout(vk->device, &descriptor_set_layout_create_info, NULL, &s->descriptor_set_layout);
+    if (ret != VK_SUCCESS)
+        return ret;
+
+    s->descriptor_sets = calloc(vk->nb_framebuffers, sizeof(*s->descriptor_sets));
+    VkDescriptorSetLayout *descriptor_set_layouts = calloc(vk->nb_framebuffers, sizeof(*descriptor_set_layouts));
+    for (uint32_t i = 0; i < vk->nb_framebuffers; i++) {
+        descriptor_set_layouts[i] = s->descriptor_set_layout;
+    }
+
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = s->descriptor_pool,
+        .descriptorSetCount = vk->nb_framebuffers,
+        .pSetLayouts = descriptor_set_layouts,
+    };
+    ret = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, s->descriptor_sets);
+    free(descriptor_set_layouts);
+
+    return ret;
+}
+
+static void destroy_descriptor_pool_and_sets(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct render *s = node->priv_data;
+    struct glcontext *vk = ctx->glcontext;
+
+    vkDestroyDescriptorSetLayout(vk->device, s->descriptor_set_layout, NULL);
+    vkDestroyDescriptorPool(vk->device, s->descriptor_pool, NULL);
+    free(s->descriptor_sets);
 }
 #endif
 
@@ -825,6 +900,14 @@ static int render_init(struct ngl_node *node)
 #ifdef VULKAN_BACKEND
     struct glcontext *vk = ctx->glcontext;
     VkResult vkret = create_command_pool(node);
+    if (vkret != VK_SUCCESS)
+        return -1;
+
+    vkret = create_descriptor_pool(node);
+    if (vkret != VK_SUCCESS)
+        return -1;
+
+    vkret = create_descriptor_sets(node);
     if (vkret != VK_SUCCESS)
         return -1;
 
@@ -902,7 +985,7 @@ static int render_init(struct ngl_node *node)
 
             VkWriteDescriptorSet write_descriptor_set = {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = vk->descriptor_sets[i],
+                .dstSet = s->descriptor_sets[i],
                 .dstBinding = 0,
                 .dstArrayElement = 0,
                 .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1160,6 +1243,8 @@ static void render_uninit(struct ngl_node *node)
         free(s->uniform_device_memory);
     }
 
+    destroy_descriptor_pool_and_sets(node);
+
     destroy_pipeline(node);
     vkDestroyCommandPool(vk->device, s->command_pool, NULL);
 #else
@@ -1294,7 +1379,7 @@ static void render_draw(struct ngl_node *node)
 
     if (s->nb_uniform_ids > 0) {
         update_uniforms(node);
-        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline_layout, 0, 1, &vk->descriptor_sets[vk->img_index], 0, NULL);
+        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline_layout, 0, 1, &s->descriptor_sets[vk->img_index], 0, NULL);
     }
 
     vkCmdDrawIndexed(cmd_buf, indices_buffer->count, 1, 0, 0, 0);
