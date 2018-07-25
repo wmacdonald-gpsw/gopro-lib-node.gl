@@ -162,10 +162,10 @@ static void *worker_thread(void *arg)
     return NULL;
 }
 
-#if defined(TARGET_IPHONE) || defined(TARGET_ANDROID)
-# define DEFAULT_BACKEND NGL_BACKEND_OPENGLES
-#elif defined(VULKAN_BACKEND)
+#if defined(VULKAN_BACKEND)
 # define DEFAULT_BACKEND NGL_BACKEND_VULKAN
+#elif defined(TARGET_IPHONE) || defined(TARGET_ANDROID)
+# define DEFAULT_BACKEND NGL_BACKEND_OPENGLES
 #else
 # define DEFAULT_BACKEND NGL_BACKEND_OPENGL
 #endif
