@@ -1023,8 +1023,8 @@ static int vk_clear(struct glcontext *vk)
         .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .srcQueueFamilyIndex = vk->queue_family_graphics_id,
-        .dstQueueFamilyIndex = vk->queue_family_graphics_id,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .image = vk->images[vk->img_index],
         .subresourceRange = sub_ressource_range,
     };
@@ -1035,8 +1035,8 @@ static int vk_clear(struct glcontext *vk)
         .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
         .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        .srcQueueFamilyIndex = vk->queue_family_present_id,
-        .dstQueueFamilyIndex = vk->queue_family_present_id,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .image = vk->images[vk->img_index],
         .subresourceRange = sub_ressource_range,
     };
