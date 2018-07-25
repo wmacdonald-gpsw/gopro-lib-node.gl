@@ -26,6 +26,8 @@
 // TODO: add more
 #if defined(TARGET_LINUX)
 # define VK_USE_PLATFORM_XLIB_KHR
+#elif defined(TARGET_ANDROID)
+# define VK_USE_PLATFORM_ANDROID_KHR
 #elif defined(TARGET_DARWIN)
 # define VK_USE_PLATFORM_MACOS_MVK
 #elif defined(TARGET_IPHONE)
@@ -50,7 +52,11 @@ static const VkApplicationInfo app_info = {
     .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
     .pEngineName = "node.gl",
     .engineVersion = NODEGL_VERSION_INT,
-    .apiVersion = USE_MOLTENVK ? VK_API_VERSION_1_0 : VK_API_VERSION_1_1,
+#if !defined(VK_API_VERSION_1_1) || USE_MOLTENVK
+    .apiVersion = VK_API_VERSION_1_0,
+#else
+    .apiVersion = VK_API_VERSION_1_1,
+#endif
 };
 
 static const char *my_device_extension_names[] = {
@@ -78,8 +84,12 @@ static const char *vk_res2str(VkResult res)
         case VK_ERROR_TOO_MANY_OBJECTS:         return "too many objects";
         case VK_ERROR_FORMAT_NOT_SUPPORTED:     return "format not supported";
         case VK_ERROR_FRAGMENTED_POOL:          return "fragmented pool";
+#ifdef VK_ERROR_OUT_OF_POOL_MEMORY
         case VK_ERROR_OUT_OF_POOL_MEMORY:       return "out of pool memory";
+#endif
+#ifdef VK_ERROR_INVALID_EXTERNAL_HANDLE
         case VK_ERROR_INVALID_EXTERNAL_HANDLE:  return "invalid external handle";
+#endif
         case VK_ERROR_SURFACE_LOST_KHR:         return "surface lost (KHR)";
         case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "native window in use (KHR)";
         case VK_SUBOPTIMAL_KHR:                 return "suboptimal (KHR)";
@@ -87,8 +97,12 @@ static const char *vk_res2str(VkResult res)
         case VK_ERROR_INCOMPATIBLE_DISPLAY_KHR: return "incompatible display (KHR)";
         case VK_ERROR_VALIDATION_FAILED_EXT:    return "validation failed ext";
         case VK_ERROR_INVALID_SHADER_NV:        return "invalid shader nv";
+#ifdef VK_ERROR_FRAGMENTATION_EXT
         case VK_ERROR_FRAGMENTATION_EXT:        return "fragmentation ext";
+#endif
+#ifdef VK_ERROR_NOT_PERMITTED_EXT
         case VK_ERROR_NOT_PERMITTED_EXT:        return "not permitted ext";
+#endif
         default:                                return "unknown";
     }
 }
@@ -221,6 +235,9 @@ static VkResult probe_vulkan_extensions(struct glcontext *vk)
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
         if (!strcmp(ext_props[i].extensionName, VK_KHR_XLIB_SURFACE_EXTENSION_NAME))
             vk->surface_create_type = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+        if (!strcmp(ext_props[i].extensionName, VK_KHR_ANDROID_SURFACE_EXTENSION_NAME))
+            vk->surface_create_type = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
 #elif defined(VK_USE_PLATFORM_MACOS_MVK)
         if (!strcmp(ext_props[i].extensionName, VK_MVK_MACOS_SURFACE_EXTENSION_NAME))
             vk->surface_create_type = VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK;
@@ -397,7 +414,11 @@ static VkResult select_vulkan_physical_device(struct glcontext *vk)
                    props.queueFlags & VK_QUEUE_COMPUTE_BIT        ? " Compute"       : "",
                    props.queueFlags & VK_QUEUE_TRANSFER_BIT       ? " Transfer"      : "",
                    props.queueFlags & VK_QUEUE_SPARSE_BINDING_BIT ? " SparseBinding" : "",
+#ifdef VK_QUEUE_PROTECTED_BIT
                    props.queueFlags & VK_QUEUE_PROTECTED_BIT      ? " Protected"     : "",
+#else
+                   "",
+#endif
                    props.queueCount);
             if (props.queueFlags & VK_QUEUE_GRAPHICS_BIT)
                 queue_family_graphics_id = j;
@@ -783,6 +804,19 @@ static VkResult create_window_surface(struct glcontext *vk,
             return VK_ERROR_EXTENSION_NOT_PRESENT;
 
         ret = vkCreateXlibSurfaceKHR(vk->instance, &surface_create_info, NULL, surface);
+#endif
+    } else if (vk->surface_create_type == VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR) {
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+        VkAndroidSurfaceCreateInfoKHR surface_create_info = {
+            .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
+            .window = (void *)window,
+        };
+
+        PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR = vulkan_get_proc_addr(vk, "vkCreateAndroidSurfaceKHR");
+        if (!vkCreateAndroidSurfaceKHR)
+            return VK_ERROR_EXTENSION_NOT_PRESENT;
+
+        ret = vkCreateAndroidSurfaceKHR(vk->instance, &surface_create_info, NULL, surface);
 #endif
     } else if (vk->surface_create_type == VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK) {
 #if defined(VK_USE_PLATFORM_MACOS_MVK)

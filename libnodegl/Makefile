@@ -108,10 +108,11 @@ LIB_OBJS += backend_gl.o            \
 
 LIB_EXTRA_OBJS_Linux     = glcontext_x11.o glcontext_egl.o
 LIB_EXTRA_OBJS_Darwin    = glcontext_nsgl.o
-LIB_EXTRA_OBJS_Android   = glcontext_egl.o jni_utils.o android_utils.o android_looper.o android_surface.o android_handler.o android_handlerthread.o
+LIB_EXTRA_OBJS_Android   = glcontext_egl.o
 LIB_EXTRA_OBJS_iPhone    = glcontext_eagl.o
 LIB_EXTRA_OBJS_MinGW-w64 = glcontext_wgl.o
 endif
+LIB_EXTRA_OBJS_Android += jni_utils.o android_utils.o android_looper.o android_surface.o android_handler.o android_handlerthread.o
 
 # XXX/HACK
 VKSDK_VER = 1.1.77.0

@@ -506,11 +506,14 @@ struct media {
     struct sxplayer_ctx *player;
     struct sxplayer_frame *frame;
 
+#ifdef VULKAN_BACKEND
+#else
 #ifdef TARGET_ANDROID
     GLuint android_texture_id;
     GLenum android_texture_target;
     struct android_surface *android_surface;
     struct android_handlerthread *android_handlerthread;
+#endif
 #endif
 };
 

@@ -1121,6 +1121,9 @@ static int render_init(struct ngl_node *node)
 
 #undef GET_TEXTURE_UNIFORM_LOCATION
 
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
 #if TARGET_ANDROID
             if (info->sampler_id < 0 &&
                 info->external_sampler_id < 0) {
@@ -1161,6 +1164,7 @@ static int render_init(struct ngl_node *node)
             if (info->sampler_id < 0) {
                 LOG(WARNING, "no sampler found for texture %s", entry->key);
             }
+#endif
 #endif
 
             i++;
