@@ -46,7 +46,11 @@
 #include "glcontext.h"
 #include "log.h"
 
-#define ENABLE_DEBUG (1 && !USE_MOLTENVK)
+#if USE_MOLTENVK || defined(TARGET_ANDROID)
+#define ENABLE_DEBUG 0
+#else
+#define ENABLE_DEBUG 1
+#endif
 
 static const VkApplicationInfo app_info = {
     .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
