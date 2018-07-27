@@ -26,7 +26,7 @@ import os
 import subprocess
 import sys
 import os.path as op
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PySide2 import QtCore, QtGui, QtWidgets
 
 from pynodegl_utils.com import query_subproc
 from pynodegl_utils.config import Config
@@ -42,7 +42,7 @@ from pynodegl_utils.ui.toolbar import Toolbar
 
 class MainWindow(QtWidgets.QSplitter):
 
-    error = QtCore.pyqtSignal(str)
+    error = QtCore.Signal(str)
 
     def __init__(self, module_pkgname, assets_dir, hooksdir):
         super(MainWindow, self).__init__(QtCore.Qt.Horizontal)
@@ -148,7 +148,7 @@ class MainWindow(QtWidgets.QSplitter):
         if prev_pkgname == module_pkgname:
             self._scene_toolbar.load_scene_from_name(prev_module, prev_scene)
 
-    @QtCore.pyqtSlot(str)
+    @QtCore.Slot(str)
     def _scene_err(self, err_str):
         if err_str:
             self._errbuf.setPlainText(err_str)
@@ -157,7 +157,7 @@ class MainWindow(QtWidgets.QSplitter):
         else:
             self._errbuf.hide()
 
-    @QtCore.pyqtSlot(str)
+    @QtCore.Slot(str)
     def _all_scripts_err(self, err_str):
         self._scene_toolbar.clear_scripts()
         self._scene_err(err_str)
@@ -198,12 +198,12 @@ class MainWindow(QtWidgets.QSplitter):
             return None
         return subprocess.check_output([hook]).rstrip()
 
-    @QtCore.pyqtSlot(str, str)
+    @QtCore.Slot(str, str)
     def _scene_changed(self, module_name, scene_name):
         self.setWindowTitle('%s - %s.%s' % (self._win_title_base, module_name, scene_name))
         self._currentTabChanged(self._tab_widget.currentIndex())
 
-    @QtCore.pyqtSlot(str, str)
+    @QtCore.Slot(str, str)
     def _scene_changed_hook(self, module_name, scene_name):
 
         def filename_escape(filename):
@@ -286,23 +286,23 @@ class MainWindow(QtWidgets.QSplitter):
         geometry = (self.x(), self.y(), self.width(), self.height())
         self._config.geometry_changed(geometry)
 
-    @QtCore.pyqtSlot(QtGui.QResizeEvent)
+    @QtCore.Slot(QtGui.QResizeEvent)
     def resizeEvent(self, resize_event):
         super(MainWindow, self).resizeEvent(resize_event)
         self._emit_geometry()
 
-    @QtCore.pyqtSlot(QtGui.QMoveEvent)
+    @QtCore.Slot(QtGui.QMoveEvent)
     def moveEvent(self, move_event):
         super(MainWindow, self).moveEvent(move_event)
         self._emit_geometry()
 
-    @QtCore.pyqtSlot(QtGui.QCloseEvent)
+    @QtCore.Slot(QtGui.QCloseEvent)
     def closeEvent(self, close_event):
         for name, widget in self._tabs:
             widget.close()
         super(MainWindow, self).closeEvent(close_event)
 
-    @QtCore.pyqtSlot(int)
+    @QtCore.Slot(int)
     def _currentTabChanged(self, index):
         next_view = self._tabs[index][1]
         prev_view = self._tabs[self._last_tab_index][1]

@@ -22,7 +22,7 @@
 #
 
 import subprocess
-from PyQt5 import QtCore, QtWidgets
+from PySide2 import QtCore, QtWidgets
 from fractions import Fraction
 
 from pynodegl_utils.export import Exporter
@@ -87,7 +87,7 @@ class ExportView(QtWidgets.QWidget):
     def enter(self):
         self._check_settings()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _check_settings(self):
 
         warnings = []
@@ -105,41 +105,44 @@ class ExportView(QtWidgets.QWidget):
         else:
             self._warning_label.hide()
 
-    @QtCore.pyqtSlot(tuple)
+    @QtCore.Slot(tuple)
     def set_frame_rate(self, fr):
         self._framerate = fr
         self._check_settings()
 
-    @QtCore.pyqtSlot(tuple)
+    @QtCore.Slot(tuple)
     def set_aspect_ratio(self, ar):
         self._aspect_ratio = ar
         self._check_settings()
 
-    @QtCore.pyqtSlot(int)
+    @QtCore.Slot(int)
     def _progress(self, value):
         self._pgd.setValue(value)
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _cancel(self):
         # Exporter.cancel() gracefuly stops the exporter thread and fires a
         # finished signal
-        self._exporter.cancel()
+        if self._exporter:
+            self._exporter.cancel()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _fail(self):
+        print 'FAIL, CALL FINISH'
         self._finish()
         QtWidgets.QMessageBox.critical(self,
                                        'Error',
                                        "You didn't select any scene to export.",
                                        QtWidgets.QMessageBox.Ok)
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _finish(self):
         self._pgd.close()
-        self._exporter.wait()
-        self._exporter = None
+        if self._exporter:
+            self._exporter.wait()
+            self._exporter = None
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _export(self):
         if self._exporter:
             return
@@ -162,7 +165,7 @@ class ExportView(QtWidgets.QWidget):
 
         self._exporter.start()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _select_ofile(self):
         filenames = QtWidgets.QFileDialog.getSaveFileName(self, 'Select export file')
         if not filenames[0]:

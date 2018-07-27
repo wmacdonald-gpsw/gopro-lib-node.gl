@@ -22,7 +22,7 @@
 #
 
 import time
-from PyQt5 import QtCore
+from PySide2 import QtCore
 
 import pynodegl as ngl
 from pynodegl_utils import misc
@@ -92,10 +92,10 @@ class Clock(object):
 
 class Player(QtCore.QThread):
 
-    on_play = QtCore.pyqtSignal(name='onPlay')
-    on_pause = QtCore.pyqtSignal(name='onPause')
-    on_scene_metadata = QtCore.pyqtSignal(dict, name='onSceneMetadata')
-    on_frame = QtCore.pyqtSignal(int, float, name='onFrame')
+    onPlay = QtCore.Signal()
+    onPause = QtCore.Signal()
+    onSceneMetadata = QtCore.Signal(dict)
+    onFrame = QtCore.Signal(int, float)
 
     def __init__(self, window, width, height, config):
         super(Player, self).__init__()

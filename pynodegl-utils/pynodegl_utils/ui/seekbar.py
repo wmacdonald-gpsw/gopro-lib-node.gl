@@ -23,16 +23,16 @@
 
 import time
 
-from PyQt5 import QtCore, QtWidgets
+from PySide2 import QtCore, QtWidgets
 
 
 class Seekbar(QtWidgets.QWidget):
 
-    play = QtCore.pyqtSignal(name='play')
-    pause = QtCore.pyqtSignal(name='pause')
-    seek = QtCore.pyqtSignal(float, name='seek')
-    step = QtCore.pyqtSignal(int, name='step')
-    stop = QtCore.pyqtSignal(name='stop')
+    play = QtCore.Signal()
+    pause = QtCore.Signal()
+    seek = QtCore.Signal(float)
+    step = QtCore.Signal(int)
+    stop = QtCore.Signal()
 
     SLIDER_TIMEBASE = 1000
     SLIDER_TIMESCALE = 1. / SLIDER_TIMEBASE
@@ -84,58 +84,58 @@ class Seekbar(QtWidgets.QWidget):
             self._action_btn.setText(u'▶')
         self._current_state = action
 
-    @QtCore.pyqtSlot(int)
+    @QtCore.Slot(int)
     def _slider_moved(self, value):  # only user move
         if not self._scene_duration:
             return
         self.seek.emit(value * self.SLIDER_TIMESCALE)
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _slider_pressed(self):
         self._slider_dragged = True
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _slider_released(self):
         self._slider_dragged = False
         self._refresh()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _toggle_playback(self):
         if self._current_state == 'play':
             self.pause.emit()
         else:
             self.play.emit()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _stop(self):
         self._set_action('pause')
         self.stop.emit()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _step_fw(self):
         self.step.emit(1)
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def _step_bw(self):
         self.step.emit(-1)
 
-    @QtCore.pyqtSlot(dict)
+    @QtCore.Slot(dict)
     def set_scene_metadata(self, cfg):
         self._scene_duration = cfg['duration']
         self._framerate = cfg['framerate']
         self._slider.setRange(0, self._scene_duration * self.SLIDER_TIMEBASE)
         self._refresh()
 
-    @QtCore.pyqtSlot(int, float)
+    @QtCore.Slot(int, float)
     def set_frame_time(self, frame_index, frame_time):
         self._frame_index = frame_index
         self._refresh()
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def set_play_state(self):
         self._set_action('play')
 
-    @QtCore.pyqtSlot()
+    @QtCore.Slot()
     def set_pause_state(self):
         self._set_action('pause')
 
