@@ -209,7 +209,7 @@ static void update_sampler2D(const struct glcontext *gl,
                              uint64_t *used_texture_units,
                              int *sampling_mode)
 {
-    if (info->sampler_id) {
+    if (info->sampler_id >= 0) {
         *sampling_mode = NGLI_SAMPLING_MODE_2D;
 
         ngli_glActiveTexture(gl, GL_TEXTURE0 + *unit_index);
@@ -227,7 +227,7 @@ static void update_sampler3D(const struct glcontext *gl,
                              uint64_t *used_texture_units,
                              int *sampling_mode)
 {
-    if (info->sampler_id) {
+    if (info->sampler_id >= 0) {
         *sampling_mode = NGLI_SAMPLING_MODE_2D;
 
         ngli_glActiveTexture(gl, GL_TEXTURE0 + *unit_index);
@@ -235,6 +235,34 @@ static void update_sampler3D(const struct glcontext *gl,
         ngli_glUniform1i(gl, info->sampler_id, *unit_index);
     }
 }
+
+static const char *sampler_type_to_str(int sampler_type)
+{
+    switch (sampler_type) {
+        case 0: return "0";
+        case GL_IMAGE_2D: return "image2D";
+        case GL_SAMPLER_2D: return "sampler2D";
+        case GL_SAMPLER_3D: return "sampler3D";
+#ifdef TARGET_ANDROID
+        case GL_SAMPLER_EXTERNAL_OES: return "samplerExternalOES";
+#endif
+    }
+    return "???";
+}
+
+static const char *texture_target_to_str(int texture_target)
+{
+    switch (texture_target) {
+        case 0: return "0";
+        case GL_TEXTURE_2D: return "texture2D";
+        case GL_TEXTURE_3D: return "texture3D";
+#ifdef TARGET_ANDROID
+        case GL_TEXTURE_EXTERNAL_OES: return "textureExternalOES";
+#endif
+    }
+    return "???";
+}
+
 
 static int update_images_and_samplers(struct ngl_node *node)
 {
@@ -247,6 +275,7 @@ static int update_images_and_samplers(struct ngl_node *node)
         uint64_t used_texture_units = s->used_texture_units;
 
         if (s->disabled_texture_unit >= 0) {
+            LOG(ERROR, "render disabled texture unit: %d", s->disabled_texture_unit);
             ngli_glActiveTexture(gl, GL_TEXTURE0 + s->disabled_texture_unit);
             ngli_glBindTexture(gl, GL_TEXTURE_2D, s->disabled_texture_unit);
 #ifdef TARGET_ANDROID
@@ -262,8 +291,10 @@ static int update_images_and_samplers(struct ngl_node *node)
             struct texture *texture = tnode->priv_data;
 
             if (info->sampler_type == GL_IMAGE_2D) {
-                LOG(VERBOSE,
-                    "image at location=%d will use texture_unit=%d",
+                LOG(ERROR,
+                    "image %s.%s at location=%d will use texture_unit=%d",
+                    s->program->name,
+                    info->name,
                     info->sampler_id,
                     info->sampler_value);
 
@@ -289,43 +320,48 @@ static int update_images_and_samplers(struct ngl_node *node)
                 if (info->ts_id >= 0)
                     ngli_glUniform1f(gl, info->ts_id, texture->data_src_ts);
             } else {
+                int sampling_mode = NGLI_SAMPLING_MODE_NONE;
+
+                if (   (texture->target == GL_TEXTURE_2D           && info->sampler_type != GL_SAMPLER_2D)
+                    || (texture->target == GL_TEXTURE_3D           && info->sampler_type != GL_SAMPLER_3D)
+#ifdef TARGET_ANDROID
+                    || (texture->target == GL_TEXTURE_EXTERNAL_OES && info->sampler_type != GL_SAMPLER_EXTERNAL_OES)
+#endif
+                    ) {
+                    LOG(ERROR, "sampler type of %s.%s (%s) does not match target of texture %s (%s)",
+                        s->program->name, info->name,
+                        sampler_type_to_str(info->sampler_type),
+                        tnode->name,
+                        texture_target_to_str(texture->target));
+                    return -1;
+                }
+
+                if (info->sampler_id >= 0) {
+                    LOG(ERROR, "RENDER SAMPLER ID %d", info->sampler_id);
+
                 int texture_index = acquire_next_available_texture_unit(&used_texture_units);
                 if (texture_index < 0) {
                     LOG(ERROR, "no texture unit available");
                     return -1;
                 }
-                LOG(VERBOSE,
-                    "sampler at location=%d will use texture_unit=%d",
-                    info->sampler_id,
-                    texture_index);
-                int sampling_mode = NGLI_SAMPLING_MODE_NONE;
+                LOG(ERROR,
+                    "sampler %s.%s at location=%d will use texture_unit=%d",
+                    s->program->name, info->name, info->sampler_id, texture_index);
+
                 switch (texture->target) {
                 case GL_TEXTURE_2D:
-                    if (info->sampler_type != GL_SAMPLER_2D) {
-                        LOG(ERROR, "sampler type (0x%x) does not match texture target (0x%x)",
-                            info->sampler_type, texture->target);
-                        return -1;
-                    }
                     update_sampler2D(gl, s, texture, info, &texture_index, &used_texture_units, &sampling_mode);
                     break;
                 case GL_TEXTURE_3D:
-                    if (info->sampler_type != GL_SAMPLER_3D) {
-                        LOG(ERROR, "sampler type (0x%x) does not match texture target (0x%x)",
-                            info->sampler_type, texture->target);
-                        return -1;
-                    }
                     update_sampler3D(gl, s, texture, info, &texture_index, &used_texture_units, &sampling_mode);
                     break;
 #ifdef TARGET_ANDROID
                 case GL_TEXTURE_EXTERNAL_OES:
-                    if (info->sampler_type != GL_SAMPLER_EXTERNAL_OES) {
-                        LOG(ERROR, "sampler type (0x%x) does not match texture target (0x%x)",
-                            info->sampler_type, texture->target);
-                        return -1;
-                    }
                     update_external_sampler(gl, s, texture, info, &texture_index, &used_texture_units, &sampling_mode);
                     break;
 #endif
+                }
+
                 }
 
                 if (info->sampling_mode_id >= 0)

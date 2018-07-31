@@ -142,7 +142,7 @@ static void update_sampler2D(const struct glcontext *gl,
                              int *unit_index,
                              int *sampling_mode)
 {
-    if (info->sampler_id) {
+    if (info->sampler_id >= 0) {
         *sampling_mode = NGLI_SAMPLING_MODE_2D;
 
         ngli_glActiveTexture(gl, GL_TEXTURE0 + *unit_index);
@@ -159,7 +159,7 @@ static void update_sampler3D(const struct glcontext *gl,
                              int *unit_index,
                              int *sampling_mode)
 {
-    if (info->sampler_id) {
+    if (info->sampler_id >= 0) {
         *sampling_mode = NGLI_SAMPLING_MODE_2D;
 
         ngli_glActiveTexture(gl, GL_TEXTURE0 + *unit_index);
@@ -179,6 +179,7 @@ static int update_uniforms(struct ngl_node *node)
         uint64_t used_texture_units = s->used_texture_units;
 
         if (s->disabled_texture_unit >= 0) {
+            LOG(ERROR, "disabled texture unit: %d", s->disabled_texture_unit);
             ngli_glActiveTexture(gl, GL_TEXTURE0 + s->disabled_texture_unit);
             ngli_glBindTexture(gl, GL_TEXTURE_2D, s->disabled_texture_unit);
 #ifdef TARGET_ANDROID
@@ -220,6 +221,10 @@ static int update_uniforms(struct ngl_node *node)
                 if (info->ts_id >= 0)
                     ngli_glUniform1f(gl, info->ts_id, texture->data_src_ts);
             } else {
+                int sampling_mode = NGLI_SAMPLING_MODE_NONE;
+
+                if (info->sampler_id >= 0) {
+                    LOG(ERROR, "COMPUTE SAMPLER ID %d", info->sampler_id);
                 int texture_index = acquire_next_available_texture_unit(&used_texture_units);
                 if (texture_index < 0) {
                     LOG(ERROR, "no texture unit available");
@@ -229,7 +234,6 @@ static int update_uniforms(struct ngl_node *node)
                     "sampler at location=%d will use texture_unit=%d",
                     info->sampler_id,
                     texture_index);
-                int sampling_mode = NGLI_SAMPLING_MODE_NONE;
                 switch (texture->target) {
                 case GL_TEXTURE_2D:
                     if (info->sampler_type != GL_SAMPLER_2D) {
@@ -257,6 +261,7 @@ static int update_uniforms(struct ngl_node *node)
                     update_external_sampler(gl, s, texture, info, &texture_index, &sampling_mode);
                     break;
 #endif
+                }
                 }
 
                 if (info->sampling_mode_id >= 0)
