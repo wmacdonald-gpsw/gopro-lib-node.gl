@@ -305,19 +305,19 @@ static int update_uniforms(struct ngl_node *node)
 
 #ifdef VULKAN_BACKEND
     if (s->nb_uniform_ids > 0) {
-        const struct hmap_entry *entry = NULL;
 
         void *mapped_memory;
-        vkMapMemory(vk->device, s->uniform_device_memory[vk->img_index], 0, s->uniform_buffer_size, 0, &mapped_memory);
+        vkMapMemory(vk->device, s->uniform_device_memory[vk->img_index], 0, s->uniform_device_memory_size, 0, &mapped_memory);
         for (int i = 0; i < s->nb_uniform_ids; i++) {
             struct uniformprograminfo *info = &s->uniform_ids[i];
 
-            // TODO: we should retrieve ngl_node from name or other id
-            struct ngl_node *unode = ngli_hmap_next(s->uniforms, entry)->data;
+            // TODO: we should retrieve ngl_node from hash
+            const struct ngl_node *unode = ngli_hmap_get(s->uniforms, info->name);
             switch (unode->class->id) {
                 case NGL_NODE_UNIFORMFLOAT: {
+                    // TODO: uniformfloat should use float instead of double via "scalar parameter"
                     const struct uniform *u = unode->priv_data;
-                    memcpy(mapped_memory + info->offset, &u->scalar, sizeof(float));
+                    *(float*)(mapped_memory + info->offset) = u->scalar;
                     break;
                 }
                 case NGL_NODE_UNIFORMVEC2: {
@@ -487,23 +487,44 @@ static int update_vertex_attribs(struct ngl_node *node)
 
     if (geometry->vertices_buffer) {
         struct buffer *buffer = geometry->vertices_buffer->priv_data;
+#ifdef VULKAN_BACKEND
+        const struct shader_variable_reflection *variable = ngli_spirv_find_variable(program->vert_reflection, "ngl_position");
+        if (variable) {
+            register_bind(node, buffer, variable->offset);
+        }
+#else
         if (program->position_location_id >= 0) {
             register_bind(node, buffer, program->position_location_id);
         }
+#endif
     }
 
     if (geometry->uvcoords_buffer) {
         struct buffer *buffer = geometry->uvcoords_buffer->priv_data;
+#ifdef VULKAN_BACKEND
+        const struct shader_variable_reflection *variable = ngli_spirv_find_variable(program->vert_reflection, "ngl_uvcoord");
+        if (variable) {
+            register_bind(node, buffer, variable->offset);
+        }
+#else
         if (program->uvcoord_location_id >= 0) {
             register_bind(node, buffer, program->uvcoord_location_id);
         }
+#endif
     }
 
     if (geometry->normals_buffer) {
         struct buffer *buffer = geometry->normals_buffer->priv_data;
+#ifdef VULKAN_BACKEND
+        const struct shader_variable_reflection *variable = ngli_spirv_find_variable(program->vert_reflection, "ngl_normal");
+        if (variable) {
+            register_bind(node, buffer, variable->offset);
+        }
+#else
         if (program->normal_location_id >= 0) {
             register_bind(node, buffer, program->normal_location_id);
         }
+#endif
     }
 
     if (s->attributes) {
@@ -761,7 +782,6 @@ static VkResult create_graphics_pipeline(struct ngl_node *node)
         .pPushConstantRanges = push_constant_range,
     };
 
-    // TODO: only when uniform are used
     if (s->uniform_buffers) {
         pipeline_layout_create_info.setLayoutCount = 1;
         pipeline_layout_create_info.pSetLayouts = &s->descriptor_set_layout;
@@ -803,14 +823,14 @@ static VkResult create_descriptor_pool(struct ngl_node *node)
     // TODO: uniform specific
     VkDescriptorPoolSize descriptor_pool_size = {
         .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = vk->nb_framebuffers,
+        .descriptorCount = vk->nb_framebuffers * s->nb_uniform_buffers,
     };
 
     VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .poolSizeCount = 1,
         .pPoolSizes = &descriptor_pool_size,
-        .maxSets = vk->nb_framebuffers,
+        .maxSets = vk->nb_framebuffers * s->nb_uniform_buffers,
     };
 
     return vkCreateDescriptorPool(vk->device, &descriptor_pool_create_info, NULL, &s->descriptor_pool);
@@ -822,38 +842,43 @@ static VkResult create_descriptor_sets(struct ngl_node *node)
     struct render *s = node->priv_data;
     struct glcontext *vk = ctx->glcontext;
 
-    VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {
-        .binding = 0,
-        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        .descriptorCount = 1,
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .pImmutableSamplers = NULL,
-    };
+    VkResult ret = VK_SUCCESS;
+    if (s->nb_uniform_buffers) {
+        VkDescriptorSetLayoutBinding *descriptor_set_layout_bindings = calloc(s->nb_uniform_buffers, sizeof(*descriptor_set_layout_bindings));
+        for (int i = 0; i < s->nb_uniform_buffers; i++) {
+            VkDescriptorSetLayoutBinding *descriptor_set_layout_binding = &descriptor_set_layout_bindings[i];
+            descriptor_set_layout_binding->binding = i;
+            descriptor_set_layout_binding->descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptor_set_layout_binding->descriptorCount = 1;
+            descriptor_set_layout_binding->stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        }
 
-    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 1,
-        .pBindings = &descriptor_set_layout_binding,
-    };
+        VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = s->nb_uniform_buffers,
+            .pBindings = descriptor_set_layout_bindings,
+        };
 
-    VkResult ret = vkCreateDescriptorSetLayout(vk->device, &descriptor_set_layout_create_info, NULL, &s->descriptor_set_layout);
-    if (ret != VK_SUCCESS)
-        return ret;
+        ret = vkCreateDescriptorSetLayout(vk->device, &descriptor_set_layout_create_info, NULL, &s->descriptor_set_layout);
+        if (ret != VK_SUCCESS)
+            return ret;
 
-    s->descriptor_sets = calloc(vk->nb_framebuffers, sizeof(*s->descriptor_sets));
-    VkDescriptorSetLayout *descriptor_set_layouts = calloc(vk->nb_framebuffers, sizeof(*descriptor_set_layouts));
-    for (uint32_t i = 0; i < vk->nb_framebuffers; i++) {
-        descriptor_set_layouts[i] = s->descriptor_set_layout;
+        s->descriptor_sets = calloc(vk->nb_framebuffers, sizeof(*s->descriptor_sets));
+        VkDescriptorSetLayout *descriptor_set_layouts = calloc(vk->nb_framebuffers, sizeof(*descriptor_set_layouts));
+        for (uint32_t i = 0; i < vk->nb_framebuffers; i++) {
+            descriptor_set_layouts[i] = s->descriptor_set_layout;
+        }
+
+        VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = s->descriptor_pool,
+            .descriptorSetCount = vk->nb_framebuffers,
+            .pSetLayouts = descriptor_set_layouts,
+        };
+        ret = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, s->descriptor_sets);
+        free(descriptor_set_layouts);
+        free(descriptor_set_layout_bindings);
     }
-
-    VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = s->descriptor_pool,
-        .descriptorSetCount = vk->nb_framebuffers,
-        .pSetLayouts = descriptor_set_layouts,
-    };
-    ret = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, s->descriptor_sets);
-    free(descriptor_set_layouts);
 
     return ret;
 }
@@ -868,6 +893,43 @@ static void destroy_descriptor_pool_and_sets(struct ngl_node *node)
     vkDestroyDescriptorPool(vk->device, s->descriptor_pool, NULL);
     free(s->descriptor_sets);
 }
+
+static int init_uniforms(struct ngl_node *node, const struct shader_reflection *reflection)
+{
+    struct render *s = node->priv_data;
+
+    const struct shader_buffer_reflection *buffer = ngli_spirv_get_next_buffer(reflection, NGL_SHADER_BUFFER_UNIFORM, NULL);
+    while(buffer) {
+        // update variables only if user has set some uniforms
+        if (s->uniforms) {
+            for (uint32_t i=0; i<buffer->nb_variables; i++) {
+                const struct shader_variable_reflection *variable = &buffer->variables[i];
+
+                struct ngl_node *unode = ngli_hmap_get(s->uniforms, variable->name);
+                if (!unode)
+                    continue;
+
+                int ret = ngli_node_init(unode);
+                if (ret < 0)
+                    return ret;
+
+                struct uniformprograminfo *infop = &s->uniform_ids[s->nb_uniform_ids++];
+                infop->offset = s->uniform_device_memory_size + variable->offset;
+                strcpy(infop->name, variable->name);// TODO: this should be hash
+            }
+        }
+        // TODO: get more information on alignement and memory requirement
+        uint32_t uniform_buffer_alignement = buffer->size % 32;
+        uint32_t uniform_buffer_size = uniform_buffer_alignement =! 0 ? buffer->size + 32 - uniform_buffer_alignement : buffer->size;
+        s->uniform_buffer_sizes[s->nb_uniform_buffers++] = uniform_buffer_size;
+        s->uniform_device_memory_size += uniform_buffer_size;
+
+        buffer = ngli_spirv_get_next_buffer(reflection, NGL_SHADER_BUFFER_UNIFORM, buffer);
+    }
+
+    return 0;
+}
+
 #endif
 
 static int render_init(struct ngl_node *node)
@@ -903,61 +965,58 @@ static int render_init(struct ngl_node *node)
     if (vkret != VK_SUCCESS)
         return -1;
 
-    vkret = create_descriptor_pool(node);
-    if (vkret != VK_SUCCESS)
-        return -1;
-
-    vkret = create_descriptor_sets(node);
-    if (vkret != VK_SUCCESS)
-        return -1;
-
-    // uniforms test
-    s->uniform_buffers = NULL;
-    s->uniform_device_memory = NULL;
+    // create uniform ids
     int nb_uniforms = s->uniforms ? ngli_hmap_count(s->uniforms) : 0;
-    if (nb_uniforms > 0) {
+    if (nb_uniforms)
         s->uniform_ids = calloc(nb_uniforms, sizeof(*s->uniform_ids));
-        s->uniform_buffers = calloc(vk->nb_framebuffers, sizeof(*s->uniform_buffers));
-        s->uniform_device_memory = calloc(vk->nb_framebuffers, sizeof(*s->uniform_device_memory));
 
-        // TODO probe shader instead of node_render
-        s->uniform_buffer_size = 0;
-        const struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(s->uniforms, entry))) {
-            struct ngl_node *unode = entry->data;
+    // TODO: approximative uniform buffer count
+    uint32_t nb_buffers = 0;
+    if (program->vert_reflection)
+        nb_buffers += program->vert_reflection->nb_buffers;
+    if (program->frag_reflection)
+        nb_buffers += program->frag_reflection->nb_buffers;
 
-            ret = ngli_node_init(unode);
+    if (nb_buffers) {
+        s->uniform_buffer_sizes = calloc(nb_buffers, sizeof(*s->uniform_buffer_sizes));
+        s->nb_uniform_buffers = 0;
+
+        // uniform vertex shader init
+        if (program->vert_reflection) {
+            ret = init_uniforms(node, program->vert_reflection);
             if (ret < 0)
                 return ret;
-
-            struct uniformprograminfo *infop = &s->uniform_ids[s->nb_uniform_ids++];
-            infop->offset = s->uniform_buffer_size;
-
-            switch (unode->class->id) {
-                case NGL_NODE_UNIFORMFLOAT: s->uniform_buffer_size += 1 * sizeof(float); break;
-                case NGL_NODE_UNIFORMVEC2:  s->uniform_buffer_size += 2 * sizeof(float); break;
-                case NGL_NODE_UNIFORMVEC3:  s->uniform_buffer_size += 3 * sizeof(float); break;
-                case NGL_NODE_UNIFORMVEC4:  s->uniform_buffer_size += 4 * sizeof(float); break;
-                default:
-                    LOG(ERROR, "unsupported uniform of type %s", unode->class->name);
-                    break;
-            }
         }
 
-        VkBufferCreateInfo buffer_create_info = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = s->uniform_buffer_size,
-            .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        };
-
-        for (int i = 0; i < vk->nb_framebuffers; i++) {
-            VkResult ret = vkCreateBuffer(vk->device, &buffer_create_info, NULL, &s->uniform_buffers[i]);
-            if (ret != VK_SUCCESS)
+        // uniform fragment shader init
+        if (program->frag_reflection) {
+            ret = init_uniforms(node, program->frag_reflection);
+            if (ret < 0)
                 return ret;
+        }
 
+        if (s->nb_uniform_buffers) {
+            // create uniform buffers
+            s->uniform_buffers = calloc(nb_buffers * vk->nb_framebuffers, sizeof(*s->uniform_buffers));
+            for (int i = 0; i < s->nb_uniform_buffers; i++) {
+                VkBufferCreateInfo buffer_create_info = {
+                    .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                    .size = s->uniform_buffer_sizes[i],
+                    .usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                };
+
+                // create uniform buffers for each framebuffers
+                for (int j = 0; j < vk->nb_framebuffers; j++) {
+                    vkret= vkCreateBuffer(vk->device, &buffer_create_info, NULL, &s->uniform_buffers[i * vk->nb_framebuffers + j]);
+                    if (vkret != VK_SUCCESS)
+                        return vkret;
+                }
+            }
+
+            // TODO: better way to retrieve this information?
             VkMemoryRequirements memory_requirements;
-            vkGetBufferMemoryRequirements(vk->device, s->uniform_buffers[i], &memory_requirements);
+            vkGetBufferMemoryRequirements(vk->device, s->uniform_buffers[0], &memory_requirements);
 
             VkMemoryPropertyFlags memory_property_flag = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
             int memory_type_index = -1;
@@ -965,37 +1024,56 @@ static int render_init(struct ngl_node *node)
                 if ((memory_requirements.memoryTypeBits & (1<<i)) && (vk->phydev_mem_props.memoryTypes[i].propertyFlags & memory_property_flag) == memory_property_flag)
                     memory_type_index = i;
 
+            // allocate whole uniform buffers memory (for each frame buffers)
             VkMemoryAllocateInfo memory_allocate_info = {
                 .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-                .allocationSize = memory_requirements.size,
+                .allocationSize = s->uniform_device_memory_size,
                 .memoryTypeIndex = memory_type_index,
             };
+            s->uniform_device_memory = calloc(vk->nb_framebuffers, sizeof(*s->uniform_device_memory));
+            for (int i = 0; i < vk->nb_framebuffers; i++) {
+                vkret = vkAllocateMemory(vk->device, &memory_allocate_info, NULL, &s->uniform_device_memory[i]);
+                if (vkret != VK_SUCCESS)
+                    return vkret;
+            }
 
-            ret = vkAllocateMemory(vk->device, &memory_allocate_info, NULL, &s->uniform_device_memory[i]);
-            if (ret != VK_SUCCESS)
-                return ret;
+            vkret = create_descriptor_pool(node);
+            if (vkret != VK_SUCCESS)
+                return -1;
 
-            vkBindBufferMemory(vk->device, s->uniform_buffers[i], s->uniform_device_memory[i], 0);
+            vkret = create_descriptor_sets(node);
+            if (vkret != VK_SUCCESS)
+                return -1;
+            }
 
-            VkDescriptorBufferInfo descriptor_buffer_info = {
-                .buffer = s->uniform_buffers[i],
-                .offset = 0,
-                .range = VK_WHOLE_SIZE,
-            };
+            // bind all uniform buffers to memory and update descriptor sets
+            uint32_t device_memory_offset = 0;
+            for (int i = 0; i < s->nb_uniform_buffers; i++) {
+                for (int j = 0; j < vk->nb_framebuffers; j++) {
+                    uint32_t uniform_buffer_index = i * vk->nb_framebuffers + j;
+                    vkBindBufferMemory(vk->device, s->uniform_buffers[uniform_buffer_index], s->uniform_device_memory[j], device_memory_offset);
 
-            VkWriteDescriptorSet write_descriptor_set = {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = s->descriptor_sets[i],
-                .dstBinding = 0,
-                .dstArrayElement = 0,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .descriptorCount = 1,
-                .pBufferInfo = &descriptor_buffer_info,
-                .pImageInfo = NULL,
-                .pTexelBufferView = NULL,
-            };
-            vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
-        }
+                    VkDescriptorBufferInfo descriptor_buffer_info = {
+                        .buffer = s->uniform_buffers[uniform_buffer_index],
+                        .offset = 0,
+                        .range = VK_WHOLE_SIZE,
+                    };
+
+                    VkWriteDescriptorSet write_descriptor_set = {
+                        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                        .dstSet = s->descriptor_sets[j],
+                        .dstBinding = i,
+                        .dstArrayElement = 0,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                        .descriptorCount = 1,
+                        .pBufferInfo = &descriptor_buffer_info,
+                        .pImageInfo = NULL,
+                        .pTexelBufferView = NULL,
+                    };
+                    vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
+                }
+                device_memory_offset += s->uniform_buffer_sizes[i];
+            }
     }
 #else
     struct glcontext *gl = ctx->glcontext;
@@ -1064,8 +1142,9 @@ static int render_init(struct ngl_node *node)
                 return -1;
             }
 #ifdef VULKAN_BACKEND
-            s->attribute_ids[i] = ngli_spirv_get_name_location((const uint32_t *)program->vert_data,
-                                                               program->vert_data_size, entry->key);
+            const struct shader_variable_reflection *variable = ngli_spirv_find_variable(program->vert_reflection, entry->key);
+            if (variable)
+                s->attribute_ids[i] = variable->offset;
 #else
             s->attribute_ids[i] = ngli_glGetAttribLocation(gl, program->program_id, entry->key);
 #endif
@@ -1239,13 +1318,16 @@ static void render_uninit(struct ngl_node *node)
 
     if (s->uniform_buffers) {
         for (int i = 0; i < vk->nb_framebuffers; i++) {
-            vkDestroyBuffer(vk->device, s->uniform_buffers[i], NULL);
+            for (int j = 0; j < vk->nb_framebuffers; j++) {
+                vkDestroyBuffer(vk->device, s->uniform_buffers[i * vk->nb_framebuffers + j], NULL);
+            }
             vkFreeMemory(vk->device, s->uniform_device_memory[i], NULL);
         }
 
         free(s->uniform_buffers);
         free(s->uniform_device_memory);
     }
+    free(s->uniform_buffer_sizes);
 
     destroy_descriptor_pool_and_sets(node);
 
@@ -1387,10 +1469,12 @@ static void render_draw(struct ngl_node *node)
                                                                     : VK_INDEX_TYPE_UINT16;
     vkCmdBindIndexBuffer(cmd_buf, indices_buffer->vkbuf, 0, index_type);
 
-    if (s->nb_uniform_ids > 0) {
-        update_uniforms(node);
+    // TODO: should be elsewhere
+    update_uniforms(node);
+
+    // TODO: should handle all type of bufffer in different stages
+    if(s->uniform_buffers)
         vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline_layout, 0, 1, &s->descriptor_sets[vk->img_index], 0, NULL);
-    }
 
     vkCmdDrawIndexed(cmd_buf, indices_buffer->count, 1, 0, 0, 0);
     vkCmdEndRenderPass(cmd_buf);

@@ -249,6 +249,17 @@ static int program_init(struct ngl_node *node)
                                     s->frag_data, s->frag_data_size)) != VK_SUCCESS)
         return -1;
 
+    // reflect shaders
+    s->vert_reflection = NULL;
+    ret = ngli_spirv_create_reflection((uint32_t*)s->vert_data, s->vert_data_size, &s->vert_reflection);
+    if (ret < 0)
+        return ret;
+
+    s->frag_reflection = NULL;
+    ret = ngli_spirv_create_reflection((uint32_t*)s->frag_data, s->frag_data_size, &s->frag_reflection);
+    if (ret < 0)
+        return ret;
+
     VkPipelineShaderStageCreateInfo shader_stage_create_info[2] = {
         {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -264,13 +275,6 @@ static int program_init(struct ngl_node *node)
     };
     memcpy(s->shader_stage_create_info, shader_stage_create_info,
            sizeof(shader_stage_create_info));
-
-    s->position_location_id          = ngli_spirv_get_name_location((const uint32_t *)s->vert_data, s->vert_data_size, "ngl_position");
-    s->uvcoord_location_id           = ngli_spirv_get_name_location((const uint32_t *)s->vert_data, s->vert_data_size, "ngl_uvcoord");
-    s->normal_location_id            = ngli_spirv_get_name_location((const uint32_t *)s->vert_data, s->vert_data_size, "ngl_normal");
-    s->modelview_matrix_location_id  = ngli_spirv_get_name_location((const uint32_t *)s->vert_data, s->vert_data_size, "ngl_modelview_matrix");
-    s->projection_matrix_location_id = ngli_spirv_get_name_location((const uint32_t *)s->vert_data, s->vert_data_size, "ngl_projection_matrix");
-    s->normal_matrix_location_id     = ngli_spirv_get_name_location((const uint32_t *)s->vert_data, s->vert_data_size, "ngl_normal_matrix");
 #else
     struct glcontext *gl = ctx->glcontext;
 
@@ -297,6 +301,13 @@ static void program_uninit(struct ngl_node *node)
 
 #ifdef VULKAN_BACKEND
     struct glcontext *vk = ctx->glcontext;
+
+    if (s->vert_reflection)
+        ngli_spirv_destroy_reflection(s->vert_reflection);
+
+    if (s->frag_reflection)
+        ngli_spirv_destroy_reflection(s->frag_reflection);
+
     vkDestroyShaderModule(vk->device, s->frag_shader, NULL);
     vkDestroyShaderModule(vk->device, s->vert_shader, NULL);
 #else

@@ -686,10 +686,6 @@ def vkuniform(cfg):
                                       -0.5,  0.5, 0.0])
 
     indices_data = array.array('i', [0, 1, 2, 2, 3, 0])
-
-    color_uniform0 = UniformVec4(value=[1.0, 0.0, 0.0, 1.0])
-    color_uniform1 = UniformVec4(value=[0.0, 1.0, 0.0, 1.0])
-    speed_uniform2 = UniformFloat(value=0.5)
     vertices_buffer = BufferVec3(data=vertices_data)
     indices_buffer = BufferUInt(data=indices_data)
 
@@ -697,6 +693,6 @@ def vkuniform(cfg):
     program = Program(fragment=cfg.get_frag('vkuniform'),
                       vertex=cfg.get_vert('vkuniform'))
     render = Render(geometry, program)
-    render.update_uniforms(color0=color_uniform0)
+    render.update_uniforms(color2=UniformVec4(value=[1.0, 0.0, 1.0, 1.0]), factor0=UniformFloat(value=1.0), factor1=UniformFloat(value=1.0))
 
     return render

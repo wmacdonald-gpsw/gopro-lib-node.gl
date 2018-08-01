@@ -263,6 +263,7 @@ struct rtt {
 
 struct program {
 #ifdef VULKAN_BACKEND
+    // TODO: remove binary data
     uint8_t *vert_data;
     int vert_data_size;
     uint8_t *frag_data;
@@ -272,12 +273,8 @@ struct program {
     VkShaderModule frag_shader;
     VkPipelineShaderStageCreateInfo shader_stage_create_info[2];
 
-    int position_location_id;
-    int uvcoord_location_id;
-    int normal_location_id;
-    int modelview_matrix_location_id;
-    int projection_matrix_location_id;
-    int normal_matrix_location_id;
+    struct shader_reflection *vert_reflection;
+    struct shader_reflection *frag_reflection;
 #else
     const char *vertex;
     const char *fragment;
@@ -454,9 +451,11 @@ struct render {
     VkDescriptorSetLayout descriptor_set_layout;
     VkDescriptorSet *descriptor_sets;
 
-    uint32_t uniform_buffer_size;
     VkBuffer *uniform_buffers;
+    uint32_t *uniform_buffer_sizes;
+    uint32_t nb_uniform_buffers;
     VkDeviceMemory *uniform_device_memory;
+    uint32_t uniform_device_memory_size;
 #else
     GLint *attribute_ids;
     GLint *buffer_ids;
