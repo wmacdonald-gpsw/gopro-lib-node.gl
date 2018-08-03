@@ -155,7 +155,7 @@ static int media_init(struct ngl_node *node)
         return 0;
     }
 
-#if defined(TARGET_ANDROID)
+#if defined(TARGET_ANDROID) && !defined(VULKAN_BACKEND)
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
 
@@ -273,7 +273,7 @@ static void media_uninit(struct ngl_node *node)
     struct media_priv *s = node->priv_data;
     sxplayer_free(&s->player);
 
-#if defined(TARGET_ANDROID)
+#if defined(TARGET_ANDROID) && !defined(VULKAN_BACKEND)
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
 

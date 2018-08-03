@@ -30,8 +30,12 @@ struct fbo {
     int width;
     int height;
     int samples;
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     GLuint id;
     GLuint prev_id;
+#endif
     struct darray attachments;
     struct darray depth_indices;
 };
@@ -39,8 +43,12 @@ struct fbo {
 int ngli_fbo_init(struct fbo *fbo, struct glcontext *gl, int width, int height, int samples);
 int ngli_fbo_resize(struct fbo *fbo, int width, int height);
 int ngli_fbo_create_renderbuffer(struct fbo *fbo, int format);
+#ifdef VULKAN_BACKEND
+// TODO
+#else
 int ngli_fbo_attach_renderbuffer(struct fbo *fbo, int format, GLuint renderbuffer);
 int ngli_fbo_attach_texture(struct fbo *fbo, int format, GLuint texture);
+#endif
 int ngli_fbo_allocate(struct fbo *fbo);
 int ngli_fbo_bind(struct fbo *fbo);
 int ngli_fbo_unbind(struct fbo *fbo);

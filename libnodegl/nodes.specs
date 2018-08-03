@@ -104,7 +104,7 @@
         - [data, data]
         - [filename, string]
         - [stride, int]
-        - [usage, select]
+        - [usage, int]
 
 - BufferByte: _Buffer
 
@@ -198,7 +198,7 @@
 
 - ComputeProgram:
     constructors:
-        - [compute, string]
+        - [compute, data]
 
 - Geometry:
     constructors:
@@ -265,8 +265,8 @@
 
 - Program:
     optional:
-        - [vertex, string]
-        - [fragment, string]
+        - [vertex, data]
+        - [fragment, data]
 
 - Quad:
     optional:
@@ -327,7 +327,6 @@
         - [wrap_s, select]
         - [wrap_t, select]
         - [data_src, Node]
-        - [access, select]
         - [direct_rendering, bool]
 
 - Texture3D:
@@ -341,8 +340,6 @@
         - [wrap_s, select]
         - [wrap_t, select]
         - [wrap_r, select]
-        - [data_src, Node]
-        - [access, select]
 
 - TimeRangeFilter:
     constructors:

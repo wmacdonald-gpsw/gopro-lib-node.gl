@@ -27,6 +27,12 @@
 
 void ngli_glstate_probe(const struct glcontext *gl, struct glstate *state)
 {
+#ifdef VULKAN_BACKEND
+    state->color_write_mask = VK_COLOR_COMPONENT_R_BIT
+                            | VK_COLOR_COMPONENT_G_BIT
+                            | VK_COLOR_COMPONENT_B_BIT
+                            | VK_COLOR_COMPONENT_A_BIT;
+#else
     /* Blend */
     ngli_glGetIntegerv(gl, GL_BLEND,                   (GLint *)&state->blend);
     ngli_glGetIntegerv(gl, GL_BLEND_SRC_RGB,           (GLint *)&state->blend_src_factor);
@@ -57,8 +63,10 @@ void ngli_glstate_probe(const struct glcontext *gl, struct glstate *state)
     /* Face Culling */
     ngli_glGetBooleanv(gl, GL_CULL_FACE,               &state->cull_face);
     ngli_glGetIntegerv(gl, GL_CULL_FACE_MODE,          (GLint *)&state->cull_face_mode);
+#endif
 }
 
+#ifndef VULKAN_BACKEND
 void ngli_glstate_honor_state(const struct glcontext *gl,
                               const struct glstate *next,
                               const struct glstate *prev)
@@ -156,3 +164,4 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
         ngli_glCullFace(gl, next->cull_face_mode);
     }
 }
+#endif

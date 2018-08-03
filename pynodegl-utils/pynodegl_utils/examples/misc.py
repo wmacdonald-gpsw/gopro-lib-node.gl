@@ -3,7 +3,7 @@ import array
 import math
 import random
 import pynodegl as ngl
-from pynodegl_utils.misc import scene, get_frag, get_vert, get_comp
+from pynodegl_utils.misc import scene
 
 
 @scene(xsplit={'type': 'range', 'range': [0, 1], 'unit_base': 100},
@@ -32,8 +32,8 @@ def lut3d(cfg, xsplit=.3, trilinear=True):
 
     shader_version = '300 es' if cfg.backend == 'gles' else '330'
     shader_header = '#version %s\n' % shader_version
-    prog = ngl.Program(fragment=shader_header + get_frag('lut3d'),
-                       vertex=shader_header + get_vert('lut3d'))
+    prog = ngl.Program(fragment=shader_header + cfg.get_frag('lut3d'),
+                       vertex=shader_header + cfg.get_vert('lut3d'))
 
     quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     render = ngl.Render(quad, prog)
@@ -75,7 +75,7 @@ def buffer_dove(cfg,
                                blend_src_factor_a='zero',
                                blend_dst_factor_a='one')
 
-    prog_bg = ngl.Program(fragment=get_frag('color'))
+    prog_bg = ngl.Program(fragment=cfg.get_frag('color'))
     shape_bg = ngl.Circle(radius=.6, npoints=256)
     render_bg = ngl.Render(shape_bg, prog_bg, label='background')
     color_animkf = [ngl.AnimKeyFrameVec4(0,                bgcolor1),
@@ -101,7 +101,7 @@ def triangle(cfg, size=0.5):
     colors_buffer = ngl.BufferVec4(data=colors_data)
 
     triangle = ngl.Triangle((-b, -c, 0), (b, -c, 0), (0, size, 0))
-    p = ngl.Program(fragment=get_frag('triangle'), vertex=get_vert('triangle'))
+    p = ngl.Program(fragment=cfg.get_frag('triangle'), vertex=cfg.get_vert('triangle'))
     node = ngl.Render(triangle, p)
     node.update_attributes(edge_color=colors_buffer)
     animkf = [ngl.AnimKeyFrameFloat(0, 0),
@@ -118,7 +118,7 @@ def fibo(cfg, n=8):
     cfg.duration = 5.0
     cfg.aspect_ratio = (1, 1)
 
-    p = ngl.Program(fragment=get_frag('color'))
+    p = ngl.Program(fragment=cfg.get_frag('color'))
 
     fib = [0, 1, 1]
     for i in range(2, n):
@@ -222,8 +222,8 @@ def audiotex(cfg, freq_precision=7, overlay=0.6):
     video_m = ngl.Media(media.filename)
     video_tex = ngl.Texture2D(data_src=video_m)
 
-    p = ngl.Program(vertex=get_vert('dual-tex'),
-                    fragment=get_frag('audiotex'))
+    p = ngl.Program(vertex=cfg.get_vert('dual-tex'),
+                    fragment=cfg.get_frag('audiotex'))
     render = ngl.Render(q, p)
     render.update_textures(tex0=audio_tex, tex1=video_tex)
     render.update_uniforms(overlay=ngl.UniformFloat(overlay))
@@ -238,9 +238,9 @@ def particules(cfg, particules=32):
 
     shader_version = '310 es' if cfg.backend == 'gles' else '430'
     shader_header = '#version %s\n' % shader_version
-    compute_shader = shader_header + get_comp('particules')
-    vertex_shader = shader_header + get_vert('particules')
-    fragment_shader = shader_header + get_frag('particules')
+    compute_shader = shader_header + cfg.get_comp('particules')
+    vertex_shader = shader_header + cfg.get_vert('particules')
+    fragment_shader = shader_header + cfg.get_frag('particules')
 
     cfg.duration = 6
 
@@ -322,7 +322,7 @@ def blending_and_stencil(cfg):
     '''Scene using blending and stencil graphic features'''
     cfg.duration = 5
     random.seed(0)
-    fragment = get_frag('color')
+    fragment = cfg.get_frag('color')
 
     program = ngl.Program(fragment=fragment)
     circle = ngl.Circle(npoints=256)
@@ -428,7 +428,7 @@ def cube(cfg, display_depth_buffer=False):
     '''
     cube = ngl.Group(label='cube')
 
-    frag_data = get_frag('tex-tint')
+    frag_data = cfg.get_frag('tex-tint')
     program = ngl.Program(fragment=frag_data)
 
     texture = ngl.Texture2D(data_src=ngl.Media(cfg.medias[0].filename))
@@ -506,14 +506,14 @@ def histogram(cfg):
     if cfg.backend == 'gles' and cfg.system == 'Android':
         shader_header += '#extension GL_ANDROID_extension_pack_es31a: require\n'
 
-    compute_program = ngl.ComputeProgram(shader_header + get_comp('histogram-clear'))
+    compute_program = ngl.ComputeProgram(shader_header + cfg.get_comp('histogram-clear'))
     compute = ngl.Compute(256, 1, 1, compute_program, label='histogram-clear')
     compute.update_buffers(histogram_buffer=h)
     g.add_children(compute)
 
     local_size = 8
     group_size = proxy_size / local_size
-    compute_shader = get_comp('histogram-exec') % {'local_size': local_size}
+    compute_shader = cfg.get_comp('histogram-exec') % {'local_size': local_size}
     compute_program = ngl.ComputeProgram(shader_header + compute_shader)
     compute = ngl.Compute(group_size, group_size, 1, compute_program, label='histogram-exec')
     compute.update_buffers(histogram_buffer=h)
@@ -521,8 +521,8 @@ def histogram(cfg):
     g.add_children(compute)
 
     q = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
-    p = ngl.Program(vertex=shader_header + get_vert('histogram-display'),
-                    fragment=shader_header + get_frag('histogram-display'))
+    p = ngl.Program(vertex=shader_header + cfg.get_vert('histogram-display'),
+                    fragment=shader_header + cfg.get_frag('histogram-display'))
     render = ngl.Render(q, p)
     render.update_textures(tex0=t)
     render.update_buffers(histogram_buffer=h)
@@ -550,7 +550,7 @@ def quaternion(cfg):
     q = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     m = ngl.Media(cfg.medias[0].filename)
     t = ngl.Texture2D(data_src=m)
-    p = ngl.Program(vertex=get_vert('uniform-mat4'))
+    p = ngl.Program(vertex=cfg.get_vert('uniform-mat4'))
     render = ngl.Render(q, p)
     render.update_textures(tex0=t)
     render.update_uniforms(transformation_matrix=quat)
@@ -583,7 +583,7 @@ def mountain(cfg, ndim=3, nb_layers=7,
     black, white = (0, 0, 0, 1), (1, 1, 1, 1)
     quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
 
-    prog = ngl.Program(fragment=get_frag('mountain'))
+    prog = ngl.Program(fragment=cfg.get_frag('mountain'))
     hscale = 1/2.
     mountains = []
     for i in range(nb_mountains):
@@ -622,7 +622,7 @@ def mountain(cfg, ndim=3, nb_layers=7,
 
         mountains.append(render)
 
-    prog = ngl.Program(fragment=get_frag('color'))
+    prog = ngl.Program(fragment=cfg.get_frag('color'))
     sky = ngl.Render(quad, prog)
     sky.update_uniforms(color=ngl.UniformVec4(white))
 
@@ -634,3 +634,127 @@ def mountain(cfg, ndim=3, nb_layers=7,
                               blend_src_factor_a='zero',
                               blend_dst_factor_a='one')
     return blend
+
+@scene()
+def vktest(cfg):
+    cfg.duration = 4
+
+    random.seed(0)
+    group = ngl.Group()
+
+    program = ngl.Program(fragment=cfg.get_frag('vktest'),
+                          vertex=cfg.get_vert('vktest'))
+
+    color_write_masks = ['r+g+a', 'g+b+a', 'r+b+a']
+
+    for i, color_write_mask in enumerate(color_write_masks):
+        colors_data = array.array('f', [1.0, 0.0, 0.0,
+                                        0.0, 1.0, 0.0,
+                                        0.0, 0.0, 1.0,
+                                        1.0, 1.0, 1.0])
+        vertices_data = array.array('f', [-0.5, -0.5, 0.0,
+                                           0.5, -0.5, 0.0,
+                                           0.5,  0.5, 0.0,
+                                          -0.5,  0.5, 0.0])
+
+        indices_data = array.array('i', [0, 1, 2, 2, 3, 0])
+
+        colors_buffer = ngl.BufferVec3(data=colors_data)
+        vertices_buffer = ngl.BufferVec3(data=vertices_data)
+        indices_buffer = ngl.BufferUInt(data=indices_data)
+
+        geometry = ngl.Geometry(vertices_buffer, indices=indices_buffer)
+        render = ngl.Render(geometry, program)
+        render.update_attributes(color=colors_buffer)
+
+        animkf = [ngl.AnimKeyFrameFloat(0, 0),
+                  ngl.AnimKeyFrameFloat(1*cfg.duration/4., -1*360/4., 'exp_in_out'),
+                  ngl.AnimKeyFrameFloat(2*cfg.duration/4., -2*360/4., 'exp_in_out'),
+                  ngl.AnimKeyFrameFloat(3*cfg.duration/4., -3*360/4., 'exp_in_out'),
+                  ngl.AnimKeyFrameFloat(4*cfg.duration/4., -4*360/4., 'exp_in_out')]
+        rotate = ngl.Rotate(render, anim=ngl.AnimatedFloat(animkf))
+
+        tr = [random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)]
+        node = ngl.Translate(rotate, tr)
+        node = ngl.GraphicConfig(node, color_write_mask=color_write_mask)
+
+        group.add_children(node)
+
+    camera = ngl.Camera(group)
+    camera.set_eye(0.0, 0.0, 4.0)
+    camera.set_center(0.0, 0.0, 0.0)
+    camera.set_up(0.0, 1.0, 0.0)
+    camera.set_perspective(45.0, cfg.aspect_ratio_float)
+    camera.set_clipping(1.0, 10.0)
+
+    return camera
+
+
+@scene(color2={'type': 'color'},
+       factor0={'type': 'range', 'range': [0, 1], 'unit_base': 100},
+       factor1={'type': 'range', 'range': [0, 1], 'unit_base': 100})
+def vkuniform(cfg, color2=(1.0, 0.0, 1.0, 1.0), factor0=1.0, factor1=1.0):
+    geometry = ngl.Quad()
+    program = ngl.Program(fragment=cfg.get_frag('vkuniform'),
+                          vertex=cfg.get_vert('vkuniform'))
+    render = ngl.Render(geometry, program)
+    render.update_uniforms(
+            color2=ngl.UniformVec4(value=color2),
+            factor0=ngl.UniformFloat(value=factor0),
+            factor1=ngl.UniformFloat(value=factor1),
+    )
+
+    return render
+
+
+@scene()
+def vktexture_media(cfg):
+    group = ngl.Group()
+
+    m0 = cfg.medias[0]
+    cfg.duration = m0.duration
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    program = ngl.Program(fragment=cfg.get_frag('vktexture'),
+                          vertex=cfg.get_vert('vktexture'))
+    quad = ngl.Quad((-1, -1, 0), (1, 0, 0), (0, 1, 0))
+    render = ngl.Render(quad, program)
+    media = ngl.Media(m0.filename)
+    texture = ngl.Texture2D(data_src=media)
+    render.update_textures(tex0=texture)
+    group.add_children(render)
+
+    program = ngl.Program(fragment=cfg.get_frag('vktexture'),
+                          vertex=cfg.get_vert('vktexture'))
+    quad = ngl.Quad((0, 0, 0), (1, 0, 0), (0, 1, 0))
+    render = ngl.Render(quad, program)
+    media = ngl.Media(m0.filename)
+    texture = ngl.Texture2D(data_src=media)
+    render.update_textures(tex0=texture)
+    group.add_children(render)
+
+    return group
+
+
+@scene()
+def vktexture_buffer(cfg):
+    m0 = cfg.medias[0]
+    cfg.duration = m0.duration
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    program = ngl.Program(fragment=cfg.get_frag('vktexture'),
+                          vertex=cfg.get_vert('vktexture'))
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    render = ngl.Render(quad, program)
+
+    # Credits: https://icons8.com/icon/40514/dove
+    icon_filename = op.join(op.dirname(__file__), 'data', 'icons8-dove.raw')
+    cfg.files.append(icon_filename)
+    w, h = (96, 96)
+    cfg.aspect_ratio = (w, h)
+
+    img_buf = ngl.BufferUBVec4(filename=icon_filename, label='icon raw buffer')
+    texture = ngl.Texture2D(data_src=img_buf, width=w, height=h)
+    render.update_textures(tex0=texture)
+
+    return render

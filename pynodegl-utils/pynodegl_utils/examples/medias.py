@@ -1,5 +1,5 @@
 import pynodegl as ngl
-from pynodegl_utils.misc import scene, get_frag
+from pynodegl_utils.misc import scene
 
 
 @scene(uv_corner_x={'type': 'range', 'range': [0, 1], 'unit_base': 100},
@@ -22,7 +22,7 @@ def centered_media(cfg, uv_corner_x=0, uv_corner_y=0, uv_width=1, uv_height=1, p
     render.update_textures(tex0=t)
 
     if progress_bar:
-        p.set_fragment(get_frag('progress-bar'))
+        p.set_fragment(cfg.get_frag('progress-bar'))
         time_animkf = [ngl.AnimKeyFrameFloat(0, 0),
                        ngl.AnimKeyFrameFloat(cfg.duration, 1)]
         time = ngl.UniformFloat(anim=ngl.AnimatedFloat(time_animkf))
