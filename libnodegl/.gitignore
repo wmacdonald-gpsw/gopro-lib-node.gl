@@ -9,4 +9,5 @@
 /test_asm
 /test_darray
 /test_hmap
+/test_spirv
 /test_utils

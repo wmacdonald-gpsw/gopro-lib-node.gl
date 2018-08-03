@@ -36,12 +36,18 @@
 static const struct param_choices minfilter_choices = {
     .name = "min_filter",
     .consts = {
+#ifdef VULKAN_BACKEND
+        {"nearest",                VK_FILTER_NEAREST,         .desc=NGLI_DOCSTRING("nearest filtering")},
+        {"linear",                 VK_FILTER_LINEAR,          .desc=NGLI_DOCSTRING("linear filtering")},
+        // FIXME mipmap
+#else
         {"nearest",                GL_NEAREST,                .desc=NGLI_DOCSTRING("nearest filtering")},
         {"linear",                 GL_LINEAR,                 .desc=NGLI_DOCSTRING("linear filtering")},
         {"nearest_mipmap_nearest", GL_NEAREST_MIPMAP_NEAREST, .desc=NGLI_DOCSTRING("nearest filtering, nearest mipmap filtering")},
         {"linear_mipmap_nearest",  GL_LINEAR_MIPMAP_NEAREST,  .desc=NGLI_DOCSTRING("linear filtering, nearest mipmap filtering")},
         {"nearest_mipmap_linear",  GL_NEAREST_MIPMAP_LINEAR,  .desc=NGLI_DOCSTRING("nearest filtering, linear mipmap filtering")},
         {"linear_mipmap_linear",   GL_LINEAR_MIPMAP_LINEAR,   .desc=NGLI_DOCSTRING("linear filtering, linear mipmap filtering")},
+#endif
         {NULL}
     }
 };
@@ -49,8 +55,13 @@ static const struct param_choices minfilter_choices = {
 static const struct param_choices magfilter_choices = {
     .name = "mag_filter",
     .consts = {
+#ifdef VULKAN_BACKEND
+        {"nearest", VK_FILTER_NEAREST, .desc=NGLI_DOCSTRING("nearest filtering")},
+        {"linear",  VK_FILTER_LINEAR,  .desc=NGLI_DOCSTRING("linear filtering")},
+#else
         {"nearest", GL_NEAREST, .desc=NGLI_DOCSTRING("nearest filtering")},
         {"linear",  GL_LINEAR,  .desc=NGLI_DOCSTRING("linear filtering")},
+#endif
         {NULL}
     }
 };
@@ -58,13 +69,22 @@ static const struct param_choices magfilter_choices = {
 static const struct param_choices wrap_choices = {
     .name = "wrap",
     .consts = {
+#ifdef VULKAN_BACKEND
+        {"clamp_to_edge",   VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,   .desc=NGLI_DOCSTRING("clamp to edge wrapping")},
+        {"mirrored_repeat", VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT, .desc=NGLI_DOCSTRING("mirrored repeat wrapping")},
+        {"repeat",          VK_SAMPLER_ADDRESS_MODE_REPEAT,          .desc=NGLI_DOCSTRING("repeat pattern wrapping")},
+        //VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER = 3,
+        //VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE = 4,
+#else
         {"clamp_to_edge",   GL_CLAMP_TO_EDGE,   .desc=NGLI_DOCSTRING("clamp to edge wrapping")},
         {"mirrored_repeat", GL_MIRRORED_REPEAT, .desc=NGLI_DOCSTRING("mirrored repeat wrapping")},
         {"repeat",          GL_REPEAT,          .desc=NGLI_DOCSTRING("repeat pattern wrapping")},
+#endif
         {NULL}
     }
 };
 
+#ifndef VULKAN_BACKEND
 static const struct param_choices access_choices = {
     .name = "access",
     .consts = {
@@ -74,6 +94,7 @@ static const struct param_choices access_choices = {
         {NULL}
     }
 };
+#endif
 
 #define DECLARE_FORMAT_PARAM(format, size, name, doc) \
     {name, format, .desc=NGLI_DOCSTRING(doc)},
@@ -138,6 +159,17 @@ static const struct node_param texture2d_params[] = {
               .desc=NGLI_DOCSTRING("width of the texture")},
     {"height", PARAM_TYPE_INT, OFFSET(params.height), {.i64=0},
                .desc=NGLI_DOCSTRING("height of the texture")},
+#ifdef VULKAN_BACKEND
+    // TODO
+    {"min_filter", PARAM_TYPE_SELECT, OFFSET(params.min_filter), {.i64=VK_FILTER_NEAREST}, .choices=&minfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture minifying function")},
+    {"mag_filter", PARAM_TYPE_SELECT, OFFSET(params.mag_filter), {.i64=VK_FILTER_NEAREST}, .choices=&magfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture magnification function")},
+    {"wrap_s", PARAM_TYPE_SELECT, OFFSET(params.wrap_s), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the s dimension (horizontal)")},
+    {"wrap_t", PARAM_TYPE_SELECT, OFFSET(params.wrap_t), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the t dimension (vertical)")},
+#else
     {"min_filter", PARAM_TYPE_SELECT, OFFSET(params.min_filter), {.i64=GL_NEAREST}, .choices=&minfilter_choices,
                    .desc=NGLI_DOCSTRING("texture minifying function")},
     {"mag_filter", PARAM_TYPE_SELECT, OFFSET(params.mag_filter), {.i64=GL_NEAREST}, .choices=&magfilter_choices,
@@ -148,6 +180,7 @@ static const struct node_param texture2d_params[] = {
                .desc=NGLI_DOCSTRING("wrap parameter for the texture on the t dimension (vertical)")},
     {"access", PARAM_TYPE_SELECT, OFFSET(params.access), {.i64=GL_READ_WRITE}, .choices=&access_choices,
                .desc=NGLI_DOCSTRING("texture access (only honored by the `Compute` node)")},
+#endif
     {"data_src", PARAM_TYPE_NODE, OFFSET(data_src), .node_types=DATA_SRC_TYPES_LIST_2D,
                  .desc=NGLI_DOCSTRING("data source")},
     {"direct_rendering", PARAM_TYPE_BOOL, OFFSET(direct_rendering), {.i64=-1},
@@ -164,6 +197,19 @@ static const struct node_param texture3d_params[] = {
                .desc=NGLI_DOCSTRING("height of the texture")},
     {"depth", PARAM_TYPE_INT, OFFSET(params.depth), {.i64=0},
                .desc=NGLI_DOCSTRING("depth of the texture")},
+#ifdef VULKAN_BACKEND
+    // TODO
+    {"min_filter", PARAM_TYPE_SELECT, OFFSET(params.min_filter), {.i64=VK_FILTER_NEAREST}, .choices=&minfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture minifying function")},
+    {"mag_filter", PARAM_TYPE_SELECT, OFFSET(params.mag_filter), {.i64=VK_FILTER_NEAREST}, .choices=&magfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture magnification function")},
+    {"wrap_s", PARAM_TYPE_SELECT, OFFSET(params.wrap_s), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the s dimension (horizontal)")},
+    {"wrap_t", PARAM_TYPE_SELECT, OFFSET(params.wrap_t), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the t dimension (vertical)")},
+    {"wrap_r", PARAM_TYPE_SELECT, OFFSET(params.wrap_r), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the r dimension (depth)")},
+#else
     {"min_filter", PARAM_TYPE_SELECT, OFFSET(params.min_filter), {.i64=GL_NEAREST}, .choices=&minfilter_choices,
                    .desc=NGLI_DOCSTRING("texture minifying function")},
     {"mag_filter", PARAM_TYPE_SELECT, OFFSET(params.mag_filter), {.i64=GL_NEAREST}, .choices=&magfilter_choices,
@@ -176,8 +222,7 @@ static const struct node_param texture3d_params[] = {
                .desc=NGLI_DOCSTRING("wrap parameter for the texture on the r dimension (depth)")},
     {"access", PARAM_TYPE_SELECT, OFFSET(params.access), {.i64=GL_READ_WRITE}, .choices=&access_choices,
                .desc=NGLI_DOCSTRING("texture access (only honored by the `Compute` node)")},
-    {"data_src", PARAM_TYPE_NODE, OFFSET(data_src), .node_types=DATA_SRC_TYPES_LIST_3D,
-                 .desc=NGLI_DOCSTRING("data source")},
+#endif
     {NULL}
 };
 
@@ -189,9 +234,12 @@ static int texture_prefetch(struct ngl_node *node, int dimensions)
     struct texture_params *params = &s->params;
 
     params->dimensions = dimensions;
-
+#ifdef VULKAN_BACKEND
+    params->immutable = 1;
+#else
     if (gl->features & NGLI_FEATURE_TEXTURE_STORAGE)
         params->immutable = 1;
+#endif
 
     const uint8_t *data = NULL;
 
@@ -366,10 +414,12 @@ static int texture3d_init(struct ngl_node *node)
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
 
+#ifndef VULKAN_BACKEND
     if (!(gl->features & NGLI_FEATURE_TEXTURE_3D)) {
         LOG(ERROR, "context does not support 3D textures");
         return -1;
     }
+#endif
     return 0;
 }
 

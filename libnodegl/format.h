@@ -32,6 +32,9 @@ enum {
     NGLI_FORMATS(DECLARE_FORMAT)
 };
 
+#ifdef VULKAN_BACKEND
+int ngli_format_get_vk_format(struct glcontext *vk, int data_format, VkFormat *format);
+#else
 int ngli_format_get_gl_texture_format(struct glcontext *gl,
                                       int data_format,
                                       GLint *formatp,
@@ -41,6 +44,6 @@ int ngli_format_get_gl_texture_format(struct glcontext *gl,
 int ngli_format_get_gl_renderbuffer_format(struct glcontext *gl,
                                            int data_format,
                                            GLint *formatp);
-
+#endif
 
 #endif

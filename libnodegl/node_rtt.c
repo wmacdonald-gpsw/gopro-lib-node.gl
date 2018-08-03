@@ -68,6 +68,7 @@ static const struct node_param rtt_params[] = {
     {NULL}
 };
 
+#ifndef VULKAN_BACKEND
 static int has_stencil(int format)
 {
     switch (format) {
@@ -78,6 +79,7 @@ static int has_stencil(int format)
         return 0;
     }
 }
+#endif
 
 static int rtt_init(struct ngl_node *node)
 {
@@ -89,6 +91,9 @@ static int rtt_init(struct ngl_node *node)
     return 0;
 }
 
+#ifdef VULKAN_BACKEND
+// TODO
+#else
 static int rtt_prefetch(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -291,15 +296,18 @@ static void rtt_release(struct ngl_node *node)
     ngli_texture_reset(&s->fbo_ms_color);
     ngli_texture_reset(&s->fbo_ms_depth);
 }
+#endif
 
 const struct node_class ngli_rtt_class = {
     .id        = NGL_NODE_RENDERTOTEXTURE,
     .name      = "RenderToTexture",
     .init      = rtt_init,
+#ifndef VULKAN_BACKEND
     .prefetch  = rtt_prefetch,
     .update    = rtt_update,
     .draw      = rtt_draw,
     .release   = rtt_release,
+#endif
     .priv_size = sizeof(struct rtt_priv),
     .params    = rtt_params,
     .file      = __FILE__,

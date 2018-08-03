@@ -38,9 +38,11 @@ struct fbo {
     int width;
     int height;
 
+#ifndef VULKAN_BACKEND
     GLuint id;
     GLuint prev_id;
     struct darray depth_indices;
+#endif
 };
 
 int ngli_fbo_init(struct fbo *fbo, struct glcontext *gl, const struct fbo_params *params);

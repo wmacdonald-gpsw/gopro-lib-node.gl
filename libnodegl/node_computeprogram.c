@@ -31,11 +31,19 @@
 
 #define OFFSET(x) offsetof(struct program_priv, x)
 static const struct node_param computeprogram_params[] = {
+#ifdef VULKAN_BACKEND
+    {"compute", PARAM_TYPE_DATA, OFFSET(compute_data), .flags=PARAM_FLAG_CONSTRUCTOR,
+                .desc=NGLI_DOCSTRING("compute SPIR-V shader")},
+#else
     {"compute", PARAM_TYPE_STR, OFFSET(compute), .flags=PARAM_FLAG_CONSTRUCTOR,
                 .desc=NGLI_DOCSTRING("compute shader")},
+#endif
     {NULL}
 };
 
+#ifdef VULKAN_BACKEND
+// TODO
+#else
 static GLuint load_shader(struct ngl_node *node, const char *compute_shader_data)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -66,9 +74,13 @@ fail:
 
     return 0;
 }
+#endif
 
 static int computeprogram_init(struct ngl_node *node)
 {
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
     struct program_priv *s = node->priv_data;
@@ -86,12 +98,16 @@ static int computeprogram_init(struct ngl_node *node)
     s->active_buffer_blocks = ngli_program_probe_buffer_blocks(node->label, gl, s->program_id);
     if (!s->active_uniforms || !s->active_buffer_blocks)
         return -1;
+#endif
 
     return 0;
 }
 
 static void computeprogram_uninit(struct ngl_node *node)
 {
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
     struct program_priv *s = node->priv_data;
@@ -99,6 +115,7 @@ static void computeprogram_uninit(struct ngl_node *node)
     ngli_hmap_freep(&s->active_uniforms);
     ngli_hmap_freep(&s->active_buffer_blocks);
     ngli_glDeleteProgram(gl, s->program_id);
+#endif
 }
 
 const struct node_class ngli_computeprogram_class = {

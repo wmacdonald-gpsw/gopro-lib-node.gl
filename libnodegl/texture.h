@@ -25,9 +25,26 @@
 #include "glincludes.h"
 #include "glcontext.h"
 
+#ifdef VULKAN_BACKEND
+int ngli_texture_filter_has_mipmap(VkFilter filter);
+int ngli_texture_filter_has_linear_filtering(VkFilter filter);
+#else
 int ngli_texture_filter_has_mipmap(GLint filter);
 int ngli_texture_filter_has_linear_filtering(GLint filter);
+#endif
 
+#ifdef VULKAN_BACKEND
+#define NGLI_TEXTURE_PARAM_DEFAULTS {                 \
+    .dimensions = 2,                                  \
+    .format = NGLI_FORMAT_UNDEFINED,                  \
+    .min_filter = VK_FILTERL_NEAREST,                 \
+    .mag_filter = VK_FILTERL_NEAREST,                 \
+    .wrap_s = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,  \
+    .wrap_t = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,  \
+    .wrap_r = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,  \
+    .access = 0                                       \
+}
+#else
 #define NGLI_TEXTURE_PARAM_DEFAULTS {          \
     .dimensions = 2,                           \
     .format = NGLI_FORMAT_UNDEFINED,           \
@@ -38,6 +55,7 @@ int ngli_texture_filter_has_linear_filtering(GLint filter);
     .wrap_r = GL_CLAMP_TO_EDGE,                \
     .access = GL_READ_WRITE                    \
 }
+#endif
 
 #define NGLI_TEXTURE_USAGE_ATTACHMENT_ONLY (1 << 0)
 
@@ -48,12 +66,21 @@ struct texture_params {
     int height;
     int depth;
     int samples;
+#ifdef VULKAN_BACKEND
+    VkFilter min_filter;
+    VkFilter mag_filter;
+    int wrap_s;
+    int wrap_t;
+    int wrap_r;
+    int access;
+#else
     GLint min_filter;
     GLint mag_filter;
     GLint wrap_s;
     GLint wrap_t;
     GLint wrap_r;
     GLenum access;
+#endif
     int immutable;
     int usage;
     int external_storage;
@@ -67,17 +94,33 @@ struct texture {
     int wrapped;
     int external_storage;
 
+#ifdef VULKAN_BACKEND
+    VkCommandPool command_pool;
+    VkFormat format;
+
+    VkBuffer buffer;
+    VkDeviceMemory buffer_memory;
+    VkImage image;
+    VkImageLayout image_layout;
+    VkDeviceSize image_size;
+    int image_allocated;
+    VkDeviceMemory image_memory;
+    VkImageView image_view;
+    VkSampler image_sampler;
+#else
     GLenum target;
     GLuint id;
     GLint format;
     GLint internal_format;
     GLenum format_type;
+#endif
 };
 
 int ngli_texture_init(struct texture *s,
                       struct glcontext *gl,
                       const struct texture_params *params);
 
+#ifndef VULKAN_BACKEND
 int ngli_texture_wrap(struct texture *s,
                       struct glcontext *gl,
                       const struct texture_params *params,
@@ -85,6 +128,7 @@ int ngli_texture_wrap(struct texture *s,
 
 void ngli_texture_set_id(struct texture *s, GLuint id);
 void ngli_texture_set_dimensions(struct texture *s, int width, int height, int depth);
+#endif
 
 int ngli_texture_has_mipmap(const struct texture *s);
 int ngli_texture_has_linear_filtering(const struct texture *s);

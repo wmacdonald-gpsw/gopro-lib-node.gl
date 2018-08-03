@@ -34,6 +34,9 @@
 #include "nodegl.h"
 #include "nodes.h"
 #include "texture.h"
+#ifdef VULKAN_BACKEND
+#include "spirv.h"
+#endif
 #include "utils.h"
 
 static struct pipeline *get_pipeline(struct ngl_node *node)
@@ -51,6 +54,9 @@ static struct pipeline *get_pipeline(struct ngl_node *node)
     return ret;
 }
 
+#ifdef VULKAN_BACKEND
+// TODO
+#else
 static int acquire_next_available_texture_unit(uint64_t *used_texture_units)
 {
     for (int i = 0; i < sizeof(*used_texture_units) * 8; i++) {
@@ -238,12 +244,133 @@ static int update_images_and_samplers(struct ngl_node *node)
 
     return 0;
 }
+#endif
+
+#ifdef VULKAN_BACKEND
+static int update_samplers(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct pipeline *s = get_pipeline(node);
+
+    const int nb_texture_pairs = ngli_darray_count(&s->texture_pairs);
+    const struct nodeprograminfopair *pairs = ngli_darray_data(&s->texture_pairs);
+    for (int i = 0; i < nb_texture_pairs; i++) {
+        const struct nodeprograminfopair *pair = &pairs[i];
+        struct textureprograminfo *info = pair->program_info;
+        const struct ngl_node *tnode = pair->node;
+        struct texture_priv *texture = tnode->priv_data;
+        struct image *image = &texture->image;
+        if (!image->layout)
+            continue;
+
+        const struct texture *plane = image->planes[0];
+        if (info->binding >= 0) {
+            VkDescriptorImageInfo image_info = {
+                .imageLayout = plane->image_layout,
+                .imageView = plane->image_view,
+                .sampler = plane->image_sampler,
+            };
+            VkWriteDescriptorSet write_descriptor_set = {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = s->descriptor_sets[vk->img_index],
+                .dstBinding = info->binding,
+                .dstArrayElement = 0,
+                .descriptorType = info->is_sampler ? VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER : VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .descriptorCount = 1,
+                .pImageInfo = &image_info,
+            };
+            vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
+        }
+    }
+
+    return 0;
+}
+#endif
 
 static int update_uniforms(struct ngl_node *node)
 {
+    struct pipeline *s = get_pipeline(node);
+
+#ifdef VULKAN_BACKEND
+    const int nb_uniform_pairs = ngli_darray_count(&s->uniform_pairs);
+    const struct nodeprograminfopair *uniform_pairs = ngli_darray_data(&s->uniform_pairs);
+
+    const int nb_texture_pairs = ngli_darray_count(&s->texture_pairs);
+    const struct nodeprograminfopair *texture_pairs = ngli_darray_data(&s->texture_pairs);
+
+    if (!s->uniform_buffer.size || (!nb_uniform_pairs && !nb_texture_pairs))
+        return 0;
+
+    // FIXME: check uniform type and use its size instead of source size
+    void *mapped_memory = ngli_buffer_map(&s->uniform_buffer);
+    for (int i = 0; i < nb_uniform_pairs; i++) {
+        const struct nodeprograminfopair *pair = &uniform_pairs[i];
+        const int offset = (intptr_t)pair->program_info; // HACK / won't work with quaternion
+        const struct ngl_node *unode = pair->node;
+        void *datap = mapped_memory + offset;
+
+        switch (unode->class->id) {
+            case NGL_NODE_UNIFORMFLOAT: {
+                const struct uniform_priv *u = unode->priv_data;
+                *(float *)datap = (float)u->scalar;
+                break;
+            }
+            case NGL_NODE_UNIFORMVEC2: {
+                const struct uniform_priv *u = unode->priv_data;
+                memcpy(datap, u->vector, 2 * sizeof(float));
+                break;
+            }
+            case NGL_NODE_UNIFORMVEC3: {
+                const struct uniform_priv *u = unode->priv_data;
+                memcpy(datap, u->vector, 3 * sizeof(float));
+                break;
+            }
+            case NGL_NODE_UNIFORMVEC4: {
+                const struct uniform_priv *u = unode->priv_data;
+                memcpy(datap, u->vector, 4 * sizeof(float));
+                break;
+            }
+            default:
+                LOG(ERROR, "unsupported uniform of type %s", unode->class->name);
+                break;
+        }
+    }
+
+    for (int i = 0; i < nb_texture_pairs; i++) {
+        const struct nodeprograminfopair *pair = &texture_pairs[i];
+        struct textureprograminfo *info = pair->program_info;
+        const struct ngl_node *tnode = pair->node;
+        const struct texture_priv *texture = tnode->priv_data;
+        const struct image *image = &texture->image;
+        /* FIXME */
+        if (!image->layout)
+            continue;
+        const struct texture_params *params = &image->planes[0]->params;
+
+        if (info->coord_matrix_offset >= 0) {
+            void *datap = mapped_memory + info->coord_matrix_offset;
+            memcpy(datap, image->coordinates_matrix, sizeof(image->coordinates_matrix));
+        }
+        if (info->dimensions_offset >= 0) {
+            const float dimensions[] = {
+                params->width,
+                params->height,
+            };
+            void *datap = mapped_memory + info->dimensions_offset;
+            memcpy(datap, dimensions, sizeof(dimensions));
+        }
+        if (info->ts_offset >= 0) {
+            const float data_src_ts = image->ts;
+            void *datap = mapped_memory + info->ts_offset;
+            memcpy(datap, &data_src_ts, sizeof(data_src_ts));
+        }
+    }
+
+    ngli_buffer_unmap(&s->uniform_buffer);
+#else
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
-    struct pipeline *s = get_pipeline(node);
 
     const struct darray *uniform_pairs = &s->uniform_pairs;
     const struct nodeprograminfopair *pairs = ngli_darray_data(uniform_pairs);
@@ -322,10 +449,12 @@ static int update_uniforms(struct ngl_node *node)
             break;
         }
     }
+#endif
 
     return 0;
 }
 
+#ifndef VULKAN_BACKEND
 static int update_buffers(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -411,11 +540,297 @@ static int load_textureprograminfo(struct textureprograminfo *info,
     }
     return 0;
 }
+#else
+static void destroy_pipeline(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct pipeline *s = get_pipeline(node);
+
+    vkDeviceWaitIdle(vk->device);
+
+    vkFreeCommandBuffers(vk->device, s->command_pool,
+                         s->nb_command_buffers, s->command_buffers);
+    ngli_free(s->command_buffers);
+    vkDestroyPipeline(vk->device, s->vkpipeline, NULL);
+}
+
+static VkResult create_command_pool(struct ngl_node *node, int family_id)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct pipeline *s = get_pipeline(node);
+
+    VkCommandPoolCreateInfo command_pool_create_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .queueFamilyIndex = family_id,
+        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, // XXX
+    };
+
+    return vkCreateCommandPool(vk->device, &command_pool_create_info, NULL, &s->command_pool);
+}
+
+static VkResult create_command_buffers(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct pipeline *s = get_pipeline(node);
+
+    s->nb_command_buffers = vk->nb_framebuffers;
+    s->command_buffers = ngli_calloc(s->nb_command_buffers, sizeof(*s->command_buffers));
+    if (!s->command_buffers)
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    VkCommandBufferAllocateInfo command_buffers_allocate_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = s->command_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = s->nb_command_buffers,
+    };
+
+    VkResult ret = vkAllocateCommandBuffers(vk->device, &command_buffers_allocate_info,
+                                            s->command_buffers);
+    if (ret != VK_SUCCESS)
+        return ret;
+
+    return VK_SUCCESS;
+}
+
+static VkDescriptorSetLayoutBinding *get_descriptor_layout_binding(struct darray *binding_descriptors, int binding)
+{
+    int nb_descriptors = ngli_darray_count(binding_descriptors);
+    for (int i = 0; i < nb_descriptors; i++) {
+        VkDescriptorSetLayoutBinding *descriptor = ngli_darray_get(binding_descriptors, i);
+        if (descriptor->binding == binding) {
+            return descriptor;
+        }
+    }
+    return NULL;
+}
+
+static VkResult create_descriptor_layout_bindings(struct ngl_node *node)
+{
+    struct pipeline *s = get_pipeline(node);
+    struct program_priv *program = s->program->priv_data;
+
+    ngli_darray_init(&s->binding_descriptors, sizeof(VkDescriptorSetLayoutBinding), 0);
+    ngli_darray_init(&s->constant_descriptors, sizeof(VkPushConstantRange), 0);
+
+    static const int stages_map[] = {
+        VK_SHADER_STAGE_VERTEX_BIT,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+    };
+
+    struct hmap *bindings_map[] = {
+        program->vert_desc ? program->vert_desc->bindings : NULL,
+        program->frag_desc ? program->frag_desc->bindings : NULL,
+    };
+
+    // Create descriptor sets
+    int constant_offset = 0;
+    for (int i = 0; i < NGLI_ARRAY_NB(bindings_map); i++) {
+        const struct hmap *bindings = bindings_map[i];
+        if (!bindings)
+            continue;
+
+        const struct hmap_entry *binding_entry = NULL;
+        while ((binding_entry = ngli_hmap_next(bindings, binding_entry))) {
+            struct spirv_binding *binding = binding_entry->data;
+            if ((binding->flag & NGLI_SHADER_CONSTANT)) {
+                struct spirv_block *block = binding_entry->data;
+                VkPushConstantRange descriptor = {
+                    .stageFlags = stages_map[i],
+                    .offset = constant_offset,
+                    .size = block->size,
+                };
+                constant_offset = block->size;
+                ngli_darray_push(&s->constant_descriptors, &descriptor);
+            } else if ((binding->flag & NGLI_SHADER_UNIFORM)) {
+                VkDescriptorSetLayoutBinding *descriptorp = get_descriptor_layout_binding(&s->binding_descriptors, binding->index);
+                if (descriptorp) {
+                    descriptorp->stageFlags |= stages_map[i];
+                } else {
+                    VkDescriptorSetLayoutBinding descriptor = {
+                        .binding = binding->index,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                        .descriptorCount = 1,
+                        .stageFlags = stages_map[i],
+                    };
+                    ngli_darray_push(&s->binding_descriptors, &descriptor);
+                }
+            } else if (binding->flag & NGLI_SHADER_STORAGE) {
+                VkDescriptorSetLayoutBinding *descriptorp = get_descriptor_layout_binding(&s->binding_descriptors, binding->index);
+                if (descriptorp) {
+                    descriptorp->stageFlags |= stages_map[i];
+                } else {
+                VkDescriptorSetLayoutBinding descriptor = {
+                    .binding = binding->index,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                    .descriptorCount = 1,
+                    .stageFlags = stages_map[i],
+                };
+                ngli_darray_push(&s->binding_descriptors, &descriptor);
+                }
+            } else if (binding->flag & NGLI_SHADER_SAMPLER) {
+                VkDescriptorSetLayoutBinding *descriptorp = get_descriptor_layout_binding(&s->binding_descriptors, binding->index);
+                if (descriptorp) {
+                    descriptorp->stageFlags |= stages_map[i];
+                } else {
+                VkDescriptorSetLayoutBinding descriptor = {
+                    .binding = binding->index,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .descriptorCount = 1,
+                    .stageFlags = stages_map[i],
+                };
+                ngli_darray_push(&s->binding_descriptors, &descriptor);
+                }
+            } else if (binding->flag & NGLI_SHADER_TEXTURE) {
+                VkDescriptorSetLayoutBinding *descriptorp = get_descriptor_layout_binding(&s->binding_descriptors, binding->index);
+                if (descriptorp) {
+                    descriptorp->stageFlags |= stages_map[i];
+                } else {
+                VkDescriptorSetLayoutBinding descriptor = {
+                    .binding = binding->index,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                    .descriptorCount = 1,
+                    .stageFlags = stages_map[i],
+                };
+                ngli_darray_push(&s->binding_descriptors, &descriptor);
+                }
+            }
+        }
+    }
+
+    return VK_SUCCESS;
+}
+
+static VkResult create_descriptor_sets(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct pipeline *s = get_pipeline(node);
+
+    const int nb_bindings = ngli_darray_count(&s->binding_descriptors);
+    if (nb_bindings) {
+        static const VkDescriptorType types[] = {
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        };
+
+        VkDescriptorPoolSize *descriptor_pool_sizes = ngli_calloc(NGLI_ARRAY_NB(types), sizeof(struct VkDescriptorPoolSize));
+        if (!descriptor_pool_sizes)
+            return -1;
+        for (uint32_t i = 0; i < NGLI_ARRAY_NB(types); i++) {
+            VkDescriptorPoolSize *descriptor_pool_size = &descriptor_pool_sizes[i];
+            descriptor_pool_size->type = types[i];
+            descriptor_pool_size->descriptorCount = 16; // FIXME:
+        }
+
+        VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .poolSizeCount = NGLI_ARRAY_NB(types),
+            .pPoolSizes = descriptor_pool_sizes,
+            .maxSets = vk->nb_framebuffers,
+        };
+
+        // TODO: descriptor tool should be shared for all nodes
+        VkResult vkret = vkCreateDescriptorPool(vk->device, &descriptor_pool_create_info, NULL, &s->descriptor_pool);
+        ngli_free(descriptor_pool_sizes);
+        if (vkret != VK_SUCCESS)
+            return -1;
+
+        VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = nb_bindings,
+            .pBindings = (const VkDescriptorSetLayoutBinding *)ngli_darray_data(&s->binding_descriptors),
+        };
+
+        // create descriptor_set_layout
+        vkret = vkCreateDescriptorSetLayout(vk->device, &descriptor_set_layout_create_info, NULL, &s->descriptor_set_layout);
+        if (vkret != VK_SUCCESS)
+            return -1;
+        VkDescriptorSetLayout *descriptor_set_layouts = ngli_calloc(vk->nb_framebuffers, sizeof(*descriptor_set_layouts));
+        for (uint32_t i = 0; i < vk->nb_framebuffers; i++) {
+            descriptor_set_layouts[i] = s->descriptor_set_layout;
+        }
+
+        VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = s->descriptor_pool,
+            .descriptorSetCount = vk->nb_framebuffers,
+            .pSetLayouts = descriptor_set_layouts,
+        };
+
+        s->descriptor_sets = ngli_calloc(vk->nb_framebuffers, sizeof(*s->descriptor_sets));
+        vkret = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, s->descriptor_sets);
+        ngli_free(descriptor_set_layouts);
+        if (vkret != VK_SUCCESS)
+            return -1;
+    }
+
+    return VK_SUCCESS;
+}
+
+static VkResult create_pipeline_layout(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct pipeline *s = get_pipeline(node);
+
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    };
+
+    const int nb_constants = ngli_darray_count(&s->constant_descriptors);
+    if (nb_constants) {
+        pipeline_layout_create_info.pushConstantRangeCount = nb_constants;
+        pipeline_layout_create_info.pPushConstantRanges = (const VkPushConstantRange *)ngli_darray_data(&s->constant_descriptors);
+    }
+
+    if (s->descriptor_set_layout != VK_NULL_HANDLE) {
+        pipeline_layout_create_info.setLayoutCount = 1;
+        pipeline_layout_create_info.pSetLayouts = &s->descriptor_set_layout;
+    }
+
+    return vkCreatePipelineLayout(vk->device, &pipeline_layout_create_info, NULL, &s->pipeline_layout);
+}
+#endif
+
+#ifdef VULKAN_BACKEND
+static void buffer_bind(struct glcontext *vk,
+                        struct buffer *buffer,
+                        struct pipeline *pipeline,
+                        int offset,
+                        int size,
+                        int index,
+                        int type)
+{
+    for (uint32_t i = 0; i < vk->nb_framebuffers; i++) {
+        VkDescriptorBufferInfo descriptor_buffer_info = {
+            .buffer = buffer->vkbuf,
+            .offset = offset,
+            .range = size,
+        };
+        VkWriteDescriptorSet write_descriptor_set = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = pipeline->descriptor_sets[i],
+            .dstBinding = index,
+            .dstArrayElement = 0,
+            .descriptorType = type,
+            .descriptorCount = 1,
+            .pBufferInfo = &descriptor_buffer_info,
+            .pImageInfo = NULL,
+            .pTexelBufferView = NULL,
+        };
+        vkUpdateDescriptorSets(vk->device, 1, &write_descriptor_set, 0, NULL);
+    }
+}
+#endif
 
 int ngli_pipeline_init(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *gl = ctx->glcontext;
     struct pipeline *s = get_pipeline(node);
     struct program_priv *program = s->program->priv_data;
 
@@ -423,6 +838,203 @@ int ngli_pipeline_init(struct ngl_node *node)
     ngli_darray_init(&s->uniform_pairs, sizeof(struct nodeprograminfopair), 0);
     ngli_darray_init(&s->buffer_pairs, sizeof(struct nodeprograminfopair), 0);
 
+    /* Uniforms */
+#ifdef VULKAN_BACKEND
+    struct glcontext *vk = ctx->glcontext;
+    VkResult vkret = create_command_pool(node, s->queue_family_id);
+    if (vkret != VK_SUCCESS)
+        return -1;
+
+    vkret = create_descriptor_layout_bindings(node);
+    if (vkret != VK_SUCCESS)
+        return -1;
+
+    vkret = create_descriptor_sets(node);
+    if (vkret != VK_SUCCESS)
+        return -1;
+
+    vkret = create_pipeline_layout(node);
+    if (vkret != VK_SUCCESS)
+        return -1;
+
+    const struct hmap *bindings_map[] = {
+        program->vert_desc ? program->vert_desc->bindings : NULL,
+        program->frag_desc ? program->frag_desc->bindings : NULL,
+    };
+
+    // XXX:
+    if (s->textures) {
+        int nb_textures = ngli_hmap_count(s->textures) * NGLI_ARRAY_NB(bindings_map);
+        s->textureprograminfos = ngli_calloc(nb_textures, sizeof(*s->textureprograminfos));
+        if (!s->textureprograminfos)
+            return -1;
+    }
+
+    // compute uniform buffer size needed
+    // VkDeviceSize          minUniformBufferOffsetAlignment;
+    // VkDeviceSize          minStorageBufferOffsetAlignment;
+    int uniform_buffer_size = 0;
+    for (int i = 0; i < NGLI_ARRAY_NB(bindings_map); i++) {
+        const struct hmap *blocks = bindings_map[i];
+        if (!blocks)
+            continue;
+
+        const struct hmap_entry *block_entry = NULL;
+        while ((block_entry = ngli_hmap_next(blocks, block_entry))) {
+            struct spirv_binding *binding = block_entry->data;
+            if ((binding->flag & NGLI_SHADER_UNIFORM)) {
+                struct spirv_block *block = block_entry->data;
+                uniform_buffer_size += NGLI_ALIGN(block->size, 32);
+            }
+        }
+    }
+
+    if (uniform_buffer_size) {
+        // allocate buffer
+        int ret = ngli_buffer_allocate(&s->uniform_buffer,
+                                       vk,
+                                       uniform_buffer_size,
+                                       VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        if (ret < 0)
+            return -1;
+    }
+
+    struct spirv_block *ngl_uniforms_blocks[] = {
+        bindings_map[0] ? ngli_hmap_get(bindings_map[0], "ngl_uniforms") : NULL,
+        bindings_map[1] ? ngli_hmap_get(bindings_map[1], "ngl_uniforms") : NULL,
+    };
+    int ngl_uniforms_block_offsets[] = {
+        0,
+        0,
+    };
+
+    if (uniform_buffer_size) {
+        // attach uniform buffers
+        int uniform_block_offset = 0;
+        for (int i = 0; i < NGLI_ARRAY_NB(bindings_map); i++) {
+            const struct hmap *blocks = bindings_map[i];
+            if (!blocks)
+                continue;
+            const struct hmap_entry *block_entry = NULL;
+            while ((block_entry = ngli_hmap_next(blocks, block_entry))) {
+                struct spirv_block *block = block_entry->data;
+                struct spirv_binding *binding = block_entry->data;
+                if (!strcmp(block_entry->key, "ngl_uniforms")) {
+                    ngl_uniforms_block_offsets[i] = uniform_block_offset;
+                }
+                if (binding->flag & NGLI_SHADER_UNIFORM) {
+                    int aligned_size = NGLI_ALIGN(block->size, 32); // wtf
+                    buffer_bind(vk, &s->uniform_buffer, s, uniform_block_offset, aligned_size, binding->index, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+                    // TODO: map static uniforms directly
+                    // fill uniform pairs
+                    if (s->uniforms) {
+                        const struct hmap_entry *variable_entry = NULL;
+                        while ((variable_entry = ngli_hmap_next(block->variables, variable_entry))) {
+                            struct ngl_node *unode = ngli_hmap_get(s->uniforms, variable_entry->key);
+                            if (!unode)
+                                continue;
+                            const struct spirv_variable *variable = variable_entry->data;
+                            intptr_t uniform_offset = uniform_block_offset + variable->offset;
+
+                            struct nodeprograminfopair pair = {
+                                .node = unode,
+                                .program_info = (void *)uniform_offset,
+                            };
+                            snprintf(pair.name, sizeof(pair.name), "%s", variable_entry->key);
+                            ngli_darray_push(&s->uniform_pairs, &pair);
+                        }
+                    }
+                    uniform_block_offset += aligned_size;
+                } else if (binding->flag & NGLI_SHADER_STORAGE) {
+                    if (s->buffers) {
+                        struct ngl_node *bnode = ngli_hmap_get(s->buffers, block_entry->key);
+                        if (!bnode)
+                            continue;
+                        int ret = ngli_node_buffer_ref(bnode);
+                        if (ret < 0)
+                            return ret;
+                        struct buffer_priv *buffer = bnode->priv_data;
+                        struct buffer *graphic_buffer = &buffer->buffer;
+                        buffer_bind(vk, graphic_buffer, s, 0, buffer->data_size, binding->index, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+
+                        struct nodeprograminfopair pair = {
+                            .node = bnode,
+                            .program_info = NULL, /* FIXME: ? */
+                        };
+                        snprintf(pair.name, sizeof(pair.name), "%s", block_entry->key);
+                        ngli_darray_push(&s->buffer_pairs, &pair);
+                    }
+                }
+            }
+        }
+    }
+
+    if (s->textures) {
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(s->textures, entry))) {
+            struct ngl_node *tnode = entry->data;
+
+            /* FIXME: remove _sampler suffix or support both names */
+            char name[128];
+            snprintf(name, sizeof(name), "%s_sampler", entry->key);
+
+            for (int i = 0; i < NGLI_ARRAY_NB(bindings_map); i++) {
+                struct textureprograminfo *info = &s->textureprograminfos[s->nb_textureprograminfos];
+                info->binding = -1;
+                info->is_sampler = 0;
+                info->coord_matrix_offset = -1;
+                info->dimensions_offset = -1;
+                info->ts_offset = -1;
+
+                int submit_info = 0;
+
+                const struct hmap *bindings = bindings_map[i];
+                if (bindings) {
+                    struct spirv_binding *binding = ngli_hmap_get(bindings, name);
+                    if (binding && binding->flag & NGLI_SHADER_SAMPLER) {
+                        info->binding = binding->index;
+                        info->is_sampler = 1;
+                        submit_info = 1;
+                    /* FIXME: should be flagged as storage image */
+                    } else if (binding && binding->flag & NGLI_SHADER_TEXTURE) {
+                        info->binding = binding->index;
+                        submit_info = 1;
+                    }
+                }
+
+                struct spirv_block *block = ngl_uniforms_blocks[i];
+                if (block) {
+                    int block_offset = ngl_uniforms_block_offsets[i];
+
+#define GET_UNIFORM_VARIABLE(name) do {                                              \
+    char uniform_name[128];                                                          \
+    snprintf(uniform_name, sizeof(uniform_name), "%s_" #name, entry->key);           \
+    struct spirv_variable *variable = ngli_hmap_get(block->variables, uniform_name); \
+    if (variable) {                                                                  \
+        info->name ## _offset = block_offset + variable->offset;                     \
+        submit_info = 1;                                                             \
+    }                                                                                \
+} while (0)
+
+                    GET_UNIFORM_VARIABLE(coord_matrix);
+                    GET_UNIFORM_VARIABLE(dimensions);
+                    GET_UNIFORM_VARIABLE(ts);
+                }
+
+                if (submit_info) {
+                    struct nodeprograminfopair pair = {
+                        .node = tnode,
+                        .program_info = info,
+                    };
+                    snprintf(pair.name, sizeof(pair.name), "%s", name);
+                    ngli_darray_push(&s->texture_pairs, &pair);
+
+                    s->nb_textureprograminfos++;
+                }
+            }
+        }
+    }
+#else
     if (s->uniforms) {
         const struct hmap_entry *entry = NULL;
         while ((entry = ngli_hmap_next(s->uniforms, entry))) {
@@ -443,7 +1055,13 @@ int ngli_pipeline_init(struct ngl_node *node)
                 return -1;
         }
     }
+#endif
 
+    /* Textures */
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
+    struct glcontext *gl = ctx->glcontext;
     int nb_textures = s->textures ? ngli_hmap_count(s->textures) : 0;
     int max_nb_textures = NGLI_MIN(gl->max_texture_image_units, sizeof(s->used_texture_units) * 8);
     if (nb_textures > max_nb_textures) {
@@ -509,7 +1127,11 @@ int ngli_pipeline_init(struct ngl_node *node)
                 return -1;
         }
     }
+#endif
 
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     if (s->buffers &&
         gl->features & (NGLI_FEATURE_SHADER_STORAGE_BUFFER_OBJECT |
                         NGLI_FEATURE_UNIFORM_BUFFER_OBJECT)) {
@@ -549,6 +1171,7 @@ int ngli_pipeline_init(struct ngl_node *node)
             }
         }
     }
+#endif
 
     return 0;
 }
@@ -569,13 +1192,53 @@ void ngli_pipeline_uninit(struct ngl_node *node)
         ngli_node_buffer_unref(pair->node);
     }
     ngli_darray_reset(&s->buffer_pairs);
+
+#ifdef VULKAN_BACKEND
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+
+    destroy_pipeline(node);
+
+    vkDestroyDescriptorSetLayout(vk->device, s->descriptor_set_layout, NULL);
+    vkDestroyDescriptorPool(vk->device, s->descriptor_pool, NULL);
+    ngli_free(s->descriptor_sets);
+    vkDestroyPipelineLayout(vk->device, s->pipeline_layout, NULL);
+
+    vkDestroyCommandPool(vk->device, s->command_pool, NULL);
+
+    ngli_buffer_free(&s->uniform_buffer);
+#endif
 }
 
 int ngli_pipeline_update(struct ngl_node *node, double t)
 {
     struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *gl = ctx->glcontext;
     struct pipeline *s = get_pipeline(node);
+
+#ifdef VULKAN_BACKEND
+    struct glcontext *vk = ctx->glcontext;
+    if (s->last_width != vk->config.width ||
+        s->last_height != vk->config.height) {
+        LOG(INFO, "reconfigure from %dx%d to %dx%d",
+            s->last_width, s->last_height,
+            vk->config.width, vk->config.height);
+
+        destroy_pipeline(node);
+
+        VkResult ret = create_command_buffers(node);
+        if (ret != VK_SUCCESS)
+            return ret;
+
+        VkResult vret = s->create_func(node, &s->vkpipeline);
+        if (vret != VK_SUCCESS)
+            return -1;
+
+        s->last_width = vk->config.width;
+        s->last_height = vk->config.height;
+    }
+#else
+    struct glcontext *gl = ctx->glcontext;
+#endif
 
     if (s->textures) {
         const struct hmap_entry *entry = NULL;
@@ -595,6 +1258,9 @@ int ngli_pipeline_update(struct ngl_node *node, double t)
         }
     }
 
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     if (s->buffers &&
         gl->features & NGLI_FEATURE_SHADER_STORAGE_BUFFER_OBJECT) {
         const struct hmap_entry *entry = NULL;
@@ -608,6 +1274,7 @@ int ngli_pipeline_update(struct ngl_node *node, double t)
                 return ret;
         }
     }
+#endif
 
     return ngli_node_update(s->program, t);
 }
@@ -616,10 +1283,17 @@ int ngli_pipeline_upload_data(struct ngl_node *node)
 {
     int ret;
 
+#ifdef VULKAN_BACKEND
+    // TODO
+    if ((ret = update_uniforms(node)) < 0 ||
+        (ret = update_samplers(node)) < 0)
+        return ret;
+#else
     if ((ret = update_uniforms(node)) < 0 ||
         (ret = update_images_and_samplers(node)) < 0 ||
         (ret = update_buffers(node)) < 0)
         return ret;
+#endif
 
     return 0;
 }

@@ -41,9 +41,16 @@
 #endif
 
 #include "animation.h"
+
+#ifdef VULKAN_BACKEND
+#include <vulkan/vulkan.h>
+#else
 #include "glincludes.h"
+#endif
+
 #include "glcontext.h"
 #include "glstate.h"
+
 #include "hmap.h"
 #include "image.h"
 #include "nodegl.h"
@@ -226,7 +233,7 @@ struct geometry_priv {
     struct ngl_node *normals_buffer;
     struct ngl_node *indices_buffer;
 
-    GLenum topology;
+    int topology;
 };
 
 struct ngl_node *ngli_node_geometry_generate_buffer(struct ngl_ctx *ctx, int type, int count, int size, void *data);
@@ -238,7 +245,7 @@ struct buffer_priv {
     char *filename;         // filename from which the data will be read
     int data_comp;          // number of components per element
     int data_stride;        // stride of 1 element, in bytes
-    GLenum usage;
+    int usage;
     int data_format;        // any of NGLI_FORMAT_*
 
     /* animatedbuffer */
@@ -289,7 +296,30 @@ struct rtt_priv {
     struct texture fbo_ms_depth;
 };
 
+enum {
+    NGLI_SHADER_TYPE_VERTEX = 0,
+    NGLI_SHADER_TYPE_FRAGMENT,
+    NGLI_SHADER_TYPE_COMPUTE,
+    NGLI_SHADER_TYPE_COUNT
+};
+
 struct program_priv {
+#ifdef VULKAN_BACKEND
+    // TODO: remove binary data
+    uint8_t *vert_data;
+    int vert_data_size;
+    uint8_t *frag_data;
+    int frag_data_size;
+    uint8_t *compute_data;
+    int compute_data_size;
+
+    VkShaderModule vert_shader;
+    VkShaderModule frag_shader;
+    VkPipelineShaderStageCreateInfo shader_stage_create_info[2];
+
+    struct spirv_desc *vert_desc;
+    struct spirv_desc *frag_desc;
+#else
     const char *vertex;
     const char *fragment;
     const char *compute;
@@ -298,12 +328,37 @@ struct program_priv {
     struct hmap *active_uniforms;
     struct hmap *active_attributes;
     struct hmap *active_buffer_blocks;
+#endif
 };
+
+
+#ifdef VULKAN_BACKEND
+int ngli_format_get_vk_format(struct glcontext *vk, int data_format, VkFormat *format);
+#else
+int ngli_format_get_gl_format_type(struct glcontext *gl, int data_format,
+                                   GLint *format, GLint *internal_format, GLenum *type);
+#endif
 
 struct texture_priv {
     struct texture_params params;
+
     struct ngl_node *data_src;
     int direct_rendering;
+
+#ifdef VULKAN_BACKEND
+#if 0
+    VkCommandPool command_pool;
+
+    VkBuffer buffer;
+    VkDeviceMemory buffer_memory;
+    VkImage vkimage;
+    VkDeviceSize image_size;
+    int image_allocated;
+    VkDeviceMemory image_memory;
+    VkImageView image_view;
+    VkSampler image_sampler;
+#endif
+#endif
 
     struct texture texture;
     struct image image;
@@ -312,6 +367,7 @@ struct texture_priv {
     void *hwupload_priv_data;
 };
 
+#ifndef VULKAN_BACKEND
 struct uniformprograminfo {
     GLint location;
     GLint size;
@@ -329,6 +385,7 @@ struct bufferprograminfo {
     GLint binding;
     GLenum type;
 };
+#endif
 
 #define NGLI_SAMPLING_MODE_NONE         0
 #define NGLI_SAMPLING_MODE_DEFAULT      1
@@ -336,6 +393,13 @@ struct bufferprograminfo {
 #define NGLI_SAMPLING_MODE_NV12         3
 
 struct textureprograminfo {
+#ifdef VULKAN_BACKEND
+    int binding;
+    int is_sampler;
+    int coord_matrix_offset;
+    int dimensions_offset;
+    int ts_offset;
+#else
     int sampling_mode_location;
     int sampler_value;
     int sampler_type;
@@ -347,6 +411,7 @@ struct textureprograminfo {
     int dimensions_location;
     int dimensions_type;
     int ts_location;
+#endif
 };
 
 #define MAX_ID_LEN 128
@@ -372,6 +437,33 @@ struct pipeline {
 
     struct hmap *buffers;
     struct darray buffer_pairs; // nodeprograminfopair (buffer, uniformprograminfo)
+
+#ifdef VULKAN_BACKEND
+    int last_width;
+    int last_height;
+
+    VkPipelineLayout pipeline_layout;
+    VkPipeline vkpipeline;
+    VkCommandBuffer *command_buffers;
+    int nb_command_buffers; // XXX drop for vk->nb_framebuffers
+
+    VkResult (*create_func)(struct ngl_node *node, VkPipeline *pipeline_dstp);
+    int queue_family_id;
+    VkCommandPool command_pool;
+
+    struct darray binding_descriptors;
+    struct darray constant_descriptors;
+
+    VkDescriptorPool descriptor_pool;
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorSet *descriptor_sets;
+
+    struct buffer uniform_buffer;
+
+    int flags;
+#else
+    GLint *buffer_ids;
+#endif
 };
 
 struct render_priv {
@@ -390,15 +482,26 @@ struct render_priv {
     struct darray instance_attribute_pairs; // nodeprograminfopair (instance attribute, attributeprograminfo)
 
     int has_indices_buffer_ref;
+#ifdef VULKAN_BACKEND
+    VkVertexInputBindingDescription *bind_descs;
+    VkVertexInputAttributeDescription *attr_descs;
+    VkBuffer *vkbufs;
+    VkDeviceSize *vkbufs_offsets;
+    int nb_binds;
 
-    GLint modelview_matrix_location;
-    GLint projection_matrix_location;
-    GLint normal_matrix_location;
+    VkIndexType indices_type;
+
+    void (*draw)(VkCommandBuffer cmd_buf, struct render_priv *render);
+#else
+    int modelview_matrix_location;
+    int projection_matrix_location;
+    int normal_matrix_location;
 
     GLuint vao_id;
     GLenum indices_type;
 
     void (*draw)(struct glcontext *gl, struct render_priv *render);
+#endif
 };
 
 struct compute_priv {
@@ -428,10 +531,13 @@ struct media_priv {
     struct sxplayer_ctx *player;
     struct sxplayer_frame *frame;
 
+#ifdef VULKAN_BACKEND
+#else
 #if defined(TARGET_ANDROID)
     struct texture android_texture;
     struct android_surface *android_surface;
     struct android_handlerthread *android_handlerthread;
+#endif
 #endif
 };
 
