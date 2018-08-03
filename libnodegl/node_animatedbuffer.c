@@ -111,7 +111,11 @@ static int animatedbuffer_init(struct ngl_node *node)
     }
 
     s->dynamic = 1;
+#ifdef VULKAN_BACKEND
+        // TODO
+#else
     s->usage = GL_DYNAMIC_DRAW;
+#endif
     s->data_comp = nb_comp;
     s->data_format = format;
     s->data_stride = s->data_comp * sizeof(float);

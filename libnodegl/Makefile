@@ -57,16 +57,13 @@ LIB_NAME     = $(LIB_BASENAME).$(LIBSUFFIX)
 LIB_PCNAME   = $(LIB_BASENAME).pc
 
 LIB_OBJS = api.o                    \
-           backend_gl.o             \
            bstr.o                   \
            buffer.o                 \
            darray.o                 \
            deserialize.o            \
            dot.o                    \
-           glcontext.o              \
            glstate.o                \
            hmap.o                   \
-           hwupload.o               \
            log.o                    \
            math_utils.o             \
            memory.o                 \
@@ -100,8 +97,8 @@ LIB_OBJS = api.o                    \
            nodes.o                  \
            params.o                 \
            pipeline.o               \
-           program.o                \
            serialize.o              \
+           spirv.o                  \
            transforms.o             \
            utils.o                  \
 
@@ -109,28 +106,61 @@ LIB_OBJS_ARCH_aarch64 = asm_aarch64.o
 
 LIB_OBJS += $(LIB_OBJS_ARCH_$(ARCH))
 
+ifeq ($(BACKEND),vk)
+LIB_OBJS += backend_vk.o            \
+            vk_spirv.o              \
+
+else
+LIB_OBJS += backend_gl.o            \
+            glcontext.o             \
+            hwupload.o              \
+            program.o               \
+
 LIB_EXTRA_OBJS_Linux     = glcontext_x11.o glcontext_egl.o
 LIB_EXTRA_OBJS_Darwin    = glcontext_nsgl.o
-LIB_EXTRA_OBJS_Android   = glcontext_egl.o jni_utils.o android_utils.o android_looper.o android_surface.o android_handler.o android_handlerthread.o
+LIB_EXTRA_OBJS_Android   = glcontext_egl.o
 LIB_EXTRA_OBJS_iPhone    = glcontext_eagl.o
 LIB_EXTRA_OBJS_MinGW-w64 = glcontext_wgl.o
+endif
+LIB_EXTRA_OBJS_Android += jni_utils.o android_utils.o android_looper.o android_surface.o android_handler.o android_handlerthread.o
+
+# XXX/HACK
+VKSDK_VER = 1.1.77.0
+VKSDK_FILE = vulkansdk-macos-$(VKSDK_VER)
+VKSDK_TGZ = $(VKSDK_FILE).tar.gz
+VKSDK_BASEURL = https://sdk.lunarg.com/sdk/download/$(VKSDK_VER)/mac/
+MVK_ROOT = vulkansdk-macos-$(VKSDK_VER)/MoltenVK/
 
 LIB_CFLAGS                 = -fPIC
+ifneq ($(BACKEND),vk)
 LIB_EXTRA_CFLAGS_Linux     = -DHAVE_GLPLATFORM_GLX -DHAVE_GLPLATFORM_EGL
 LIB_EXTRA_CFLAGS_Darwin    = -DHAVE_GLPLATFORM_NSGL
 LIB_EXTRA_CFLAGS_Android   = -DHAVE_GLPLATFORM_EGL
 LIB_EXTRA_CFLAGS_iPhone    = -DHAVE_GLPLATFORM_EAGL
 LIB_EXTRA_CFLAGS_MinGW-w64 = -DHAVE_GLPLATFORM_WGL
+else
+LIB_EXTRA_CFLAGS_Darwin    = -I$(MVK_ROOT)/include/
+LIB_EXTRA_CFLAGS_iPhone    = -I$(MVK_ROOT)/include/
+endif
 
 LIB_LDLIBS                 = -lm -lpthread
 LIB_EXTRA_LDLIBS_Linux     =
+ifneq ($(BACKEND),vk)
 LIB_EXTRA_LDLIBS_Darwin    = -framework OpenGL -framework CoreVideo -framework CoreFoundation -framework AppKit
-LIB_EXTRA_LDLIBS_Android   = -legl
 LIB_EXTRA_LDLIBS_iPhone    = -framework CoreMedia
+else
+LIB_EXTRA_LDLIBS_Darwin    = -L$(MVK_ROOT)/macOS -Wl,-rpath,$(MVK_ROOT)/macOS -lMoltenVK
+LIB_EXTRA_LDLIBS_iPhone    = -L$(MVK_ROOT)/iOS -Wl,-rpath,$(MVK_ROOT)/iOS -lMoltenVK
+endif
+LIB_EXTRA_LDLIBS_Android   = -legl
 LIB_EXTRA_LDLIBS_MinGW-w64 = -lopengl32
 
 LIB_PKG_CONFIG_LIBS               = "libsxplayer >= 9.2.0"
+ifeq ($(BACKEND),vk)
+LIB_EXTRA_PKG_CONFIG_LIBS_Linux   = x11 vulkan
+else
 LIB_EXTRA_PKG_CONFIG_LIBS_Linux   = x11 gl egl
+endif
 LIB_EXTRA_PKG_CONFIG_LIBS_Darwin  =
 LIB_EXTRA_PKG_CONFIG_LIBS_Android = libavcodec
 LIB_EXTRA_PKG_CONFIG_LIBS_iPhone  =
@@ -228,11 +258,18 @@ gl.xml:
 
 
 #
+# Vulkan default shader SPIR-V generation
+#
+update_vk_spirv:
+	$(PYTHON) gen_vk_spirv.py vk_spirv.c
+
+#
 # Tests
 #
 TESTS = asm             \
         darray          \
         hmap            \
+        reflection      \
         utils           \
 
 TESTPROGS = $(addprefix test_,$(TESTS))
@@ -245,6 +282,7 @@ test_asm: LDLIBS = $(PROJECT_LDLIBS) -lm
 test_asm: test_asm.o math_utils.o $(LIB_OBJS_ARCH_$(ARCH))
 test_darray: test_darray.o darray.o memory.o
 test_hmap: test_hmap.o utils.o
+test_reflection: test_reflection.o spirv.o hmap.o utils.o darray.o memory.o
 test_utils: test_utils.o utils.o
 
 
@@ -285,6 +323,12 @@ uninstall:
 	$(RM) $(DESTDIR)$(PREFIX)/include/nodegl.h
 	$(RM) -r $(DESTDIR)$(PREFIX)/share/nodegl
 
-.PHONY: all updatespecs clean install uninstall gen-gl-wrappers
+# XXX/HACK
+vksdk: $(VKSDK_TGZ)
+	tar xf $<
+$(VKSDK_TGZ):
+	wget $(VKSDK_BASEURL)/$@
+
+.PHONY: all updatespecs clean install uninstall gen-gl-wrappers vksdk update_vk_spirv
 
 -include $(LIB_DEPS)

@@ -31,7 +31,7 @@ int ngli_graphic_buffer_allocate(struct glcontext *gl,
 
 void ngli_graphic_buffer_bind(struct glcontext *gl,
                               struct graphic_buffer *buffer,
-                              struct program *program,
+                              struct pipeline *pipeline,
                               int offset,
                               int size,
                               int index,
@@ -41,6 +41,12 @@ void ngli_graphic_buffer_upload(struct glcontext *gl,
                                 struct graphic_buffer *buffer,
                                 void *data,
                                 int size);
+
+void *ngli_graphic_buffer_map(struct glcontext *gl,
+                              struct graphic_buffer *buffer);
+
+void ngli_graphic_buffer_unmap(struct glcontext *gl,
+                               struct graphic_buffer *buffer);
 
 void ngli_graphic_buffer_free(struct glcontext *gl,
                               struct graphic_buffer *buffer);

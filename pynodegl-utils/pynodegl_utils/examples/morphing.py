@@ -14,7 +14,7 @@ from pynodegl import (
         UniformVec4,
 )
 
-from pynodegl_utils.misc import scene, get_frag
+from pynodegl_utils.misc import scene
 
 
 @scene(square_color={'type': 'color'},
@@ -69,7 +69,7 @@ def square2circle(cfg, square_color=(0.9, 0.1, 0.3, 1.0), circle_color=(1.0, 1.0
 
     geom = Geometry(vertices)
     geom.set_topology('triangle_fan')
-    p = Program(fragment=get_frag('color'))
+    p = Program(fragment=cfg.get_frag('color'))
     render = Render(geom, p)
     render.update_uniforms(color=ucolor)
     return render
@@ -116,7 +116,7 @@ def urchin(cfg, npoints=25):
 
     geom = Geometry(vertices)
     geom.set_topology('line_strip')
-    p = Program(fragment=get_frag('color'))
+    p = Program(fragment=cfg.get_frag('color'))
     render = Render(geom, p)
     render.update_uniforms(color=UniformVec4(value=(.9, .1, .3, 1)))
     return render

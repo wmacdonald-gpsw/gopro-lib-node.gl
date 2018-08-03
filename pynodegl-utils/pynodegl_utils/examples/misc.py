@@ -14,6 +14,7 @@ from pynodegl import (
         AnimatedVec4,
         AnimatedQuat,
         BufferFloat,
+        BufferUInt,
         BufferUBVec3,
         BufferUBVec4,
         BufferUIVec4,
@@ -45,7 +46,7 @@ from pynodegl import (
         UniformQuat,
 )
 
-from pynodegl_utils.misc import scene, get_frag, get_vert, get_comp
+from pynodegl_utils.misc import scene
 
 
 @scene(xsplit={'type': 'range', 'range': [0, 1], 'unit_base': 100},
@@ -73,8 +74,8 @@ def lut3d(cfg, xsplit=.3, trilinear=True):
 
     shader_version = '300 es' if cfg.backend == 'gles' else '330'
     shader_header = '#version %s\n' % shader_version
-    prog = Program(fragment=shader_header + get_frag('lut3d'),
-                   vertex=shader_header + get_vert('lut3d'))
+    prog = Program(fragment=shader_header + cfg.get_frag('lut3d'),
+                   vertex=shader_header + cfg.get_vert('lut3d'))
 
     quad = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     render = Render(quad, prog)
@@ -115,7 +116,7 @@ def buffer_dove(cfg,
                            blend_src_factor_a='zero',
                            blend_dst_factor_a='one')
 
-    prog_bg = Program(fragment=get_frag('color'))
+    prog_bg = Program(fragment=cfg.get_frag('color'))
     shape_bg = Circle(radius=.6, npoints=256)
     render_bg = Render(shape_bg, prog_bg, name='background')
     color_animkf = [AnimKeyFrameVec4(0,                bgcolor1),
@@ -140,7 +141,7 @@ def triangle(cfg, size=0.5):
     colors_buffer = BufferVec4(data=colors_data)
 
     triangle = Triangle((-b, -c, 0), (b, -c, 0), (0, size, 0))
-    p = Program(fragment=get_frag('triangle'), vertex=get_vert('triangle'))
+    p = Program(fragment=cfg.get_frag('triangle'), vertex=cfg.get_vert('triangle'))
     node = Render(triangle, p)
     node.update_attributes(edge_color=colors_buffer)
     animkf = [AnimKeyFrameFloat(0, 0),
@@ -156,7 +157,7 @@ def fibo(cfg, n=8):
     cfg.duration = 5.0
     cfg.aspect_ratio = (1, 1)
 
-    p = Program(fragment=get_frag('color'))
+    p = Program(fragment=cfg.get_frag('color'))
 
     fib = [0, 1, 1]
     for i in range(2, n):
@@ -258,8 +259,8 @@ def audiotex(cfg, freq_precision=7, overlay=0.6):
     video_m = Media(media.filename)
     video_tex = Texture2D(data_src=video_m)
 
-    p = Program(vertex=get_vert('dual-tex'),
-                fragment=get_frag('audiotex'))
+    p = Program(vertex=cfg.get_vert('dual-tex'),
+                fragment=cfg.get_frag('audiotex'))
     render = Render(q, p)
     render.update_textures(tex0=audio_tex, tex1=video_tex)
     render.update_uniforms(overlay=UniformFloat(overlay))
@@ -273,9 +274,9 @@ def particules(cfg, particules=32):
 
     shader_version = '310 es' if cfg.backend == 'gles' else '430'
     shader_header = '#version %s\n' % shader_version
-    compute_shader = shader_header + get_comp('particules')
-    vertex_shader = shader_header + get_vert('particules')
-    fragment_shader = shader_header + get_frag('particules')
+    compute_shader = shader_header + cfg.get_comp('particules')
+    vertex_shader = shader_header + cfg.get_vert('particules')
+    fragment_shader = shader_header + cfg.get_frag('particules')
 
     cfg.duration = 6
 
@@ -356,7 +357,7 @@ def particules(cfg, particules=32):
 def blending_and_stencil(cfg):
     cfg.duration = 5
     random.seed(0)
-    fragment = get_frag('color')
+    fragment = cfg.get_frag('color')
 
     program = Program(fragment=fragment)
     circle = Circle(npoints=256)
@@ -458,7 +459,7 @@ def _get_cube_side(texture, program, corner, width, height, color):
 def cube(cfg, display_depth_buffer=False):
     cube = Group(name='cube')
 
-    frag_data = get_frag('tex-tint')
+    frag_data = cfg.get_frag('tex-tint')
     program = Program(fragment=frag_data)
 
     texture = Texture2D(data_src=Media(cfg.medias[0].filename))
@@ -535,14 +536,14 @@ def histogram(cfg):
     if cfg.backend == 'gles' and cfg.system == 'Android':
         shader_header += '#extension GL_ANDROID_extension_pack_es31a: require\n'
 
-    compute_program = ComputeProgram(shader_header + get_comp('histogram-clear'))
+    compute_program = ComputeProgram(shader_header + cfg.get_comp('histogram-clear'))
     compute = Compute(256, 1, 1, compute_program, name='histogram-clear')
     compute.update_buffers(histogram_buffer=h)
     g.add_children(compute)
 
     local_size = 8
     group_size = proxy_size / local_size
-    compute_shader = get_comp('histogram-exec') % {'local_size': local_size}
+    compute_shader = cfg.get_comp('histogram-exec') % {'local_size': local_size}
     compute_program = ComputeProgram(shader_header + compute_shader)
     compute = Compute(group_size, group_size, 1, compute_program, name='histogram-exec')
     compute.update_buffers(histogram_buffer=h)
@@ -550,8 +551,8 @@ def histogram(cfg):
     g.add_children(compute)
 
     q = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
-    p = Program(vertex=shader_header + get_vert('histogram-display'),
-                fragment=shader_header + get_frag('histogram-display'))
+    p = Program(vertex=shader_header + cfg.get_vert('histogram-display'),
+                fragment=shader_header + cfg.get_frag('histogram-display'))
     render = Render(q, p)
     render.update_textures(tex0=t)
     render.update_buffers(histogram_buffer=h)
@@ -578,7 +579,7 @@ def quaternion(cfg):
     q = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
     m = Media(cfg.medias[0].filename)
     t = Texture2D(data_src=m)
-    p = Program(vertex=get_vert('uniform-mat4'))
+    p = Program(vertex=cfg.get_vert('uniform-mat4'))
     render = Render(q, p)
     render.update_textures(tex0=t)
     render.update_uniforms(transformation_matrix=quat)
@@ -610,7 +611,7 @@ def mountain(cfg, ndim=3, nb_layers=7,
     black, white = (0, 0, 0, 1), (1, 1, 1, 1)
     quad = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
 
-    prog = Program(fragment=get_frag('mountain'))
+    prog = Program(fragment=cfg.get_frag('mountain'))
     hscale = 1/2.
     mountains = []
     for i in range(nb_mountains):
@@ -649,7 +650,7 @@ def mountain(cfg, ndim=3, nb_layers=7,
 
         mountains.append(render)
 
-    prog = Program(fragment=get_frag('color'))
+    prog = Program(fragment=cfg.get_frag('color'))
     sky = Render(quad, prog)
     sky.update_uniforms(color=UniformVec4(white))
 
@@ -661,3 +662,127 @@ def mountain(cfg, ndim=3, nb_layers=7,
                           blend_src_factor_a='zero',
                           blend_dst_factor_a='one')
     return blend
+
+@scene()
+def vktest(cfg):
+    cfg.duration = 4
+
+    random.seed(0)
+    group = Group()
+
+    program = Program(fragment=cfg.get_frag('vktest'),
+                      vertex=cfg.get_vert('vktest'))
+
+    color_write_masks = ['r+g+a', 'g+b+a', 'r+b+a']
+
+    for i, color_write_mask in enumerate(color_write_masks):
+        colors_data = array.array('f', [1.0, 0.0, 0.0,
+                                        0.0, 1.0, 0.0,
+                                        0.0, 0.0, 1.0,
+                                        1.0, 1.0, 1.0])
+        vertices_data = array.array('f', [-0.5, -0.5, 0.0,
+                                           0.5, -0.5, 0.0,
+                                           0.5,  0.5, 0.0,
+                                          -0.5,  0.5, 0.0])
+
+        indices_data = array.array('i', [0, 1, 2, 2, 3, 0])
+
+        colors_buffer = BufferVec3(data=colors_data)
+        vertices_buffer = BufferVec3(data=vertices_data)
+        indices_buffer = BufferUInt(data=indices_data)
+
+        geometry = Geometry(vertices_buffer, indices=indices_buffer)
+        render = Render(geometry, program)
+        render.update_attributes(color=colors_buffer)
+
+        animkf = [AnimKeyFrameFloat(0, 0),
+                  AnimKeyFrameFloat(1*cfg.duration/4., -1*360/4., 'exp_in_out'),
+                  AnimKeyFrameFloat(2*cfg.duration/4., -2*360/4., 'exp_in_out'),
+                  AnimKeyFrameFloat(3*cfg.duration/4., -3*360/4., 'exp_in_out'),
+                  AnimKeyFrameFloat(4*cfg.duration/4., -4*360/4., 'exp_in_out')]
+        rotate = Rotate(render, anim=AnimatedFloat(animkf))
+
+        tr = [random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)]
+        node = Translate(rotate, tr)
+        node = GraphicConfig(node, color_write_mask=color_write_mask)
+
+        group.add_children(node)
+
+    camera = Camera(group)
+    camera.set_eye(0.0, 0.0, 4.0)
+    camera.set_center(0.0, 0.0, 0.0)
+    camera.set_up(0.0, 1.0, 0.0)
+    camera.set_perspective(45.0, cfg.aspect_ratio_float)
+    camera.set_clipping(1.0, 10.0)
+
+    return camera
+
+
+@scene(color2={'type': 'color'},
+       factor0={'type': 'range', 'range': [0, 1], 'unit_base': 100},
+       factor1={'type': 'range', 'range': [0, 1], 'unit_base': 100})
+def vkuniform(cfg, color2=(1.0, 0.0, 1.0, 1.0), factor0=1.0, factor1=1.0):
+    geometry = Quad()
+    program = Program(fragment=cfg.get_frag('vkuniform'),
+                      vertex=cfg.get_vert('vkuniform'))
+    render = Render(geometry, program)
+    render.update_uniforms(
+            color2=UniformVec4(value=color2),
+            factor0=UniformFloat(value=factor0),
+            factor1=UniformFloat(value=factor1),
+    )
+
+    return render
+
+
+@scene()
+def vktexture_media(cfg):
+    group = Group()
+
+    m0 = cfg.medias[0]
+    cfg.duration = m0.duration
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    program = Program(fragment=cfg.get_frag('vktexture'),
+                      vertex=cfg.get_vert('vktexture'))
+    quad = Quad((-1, -1, 0), (1, 0, 0), (0, 1, 0))
+    render = Render(quad, program)
+    media = Media(m0.filename)
+    texture = Texture2D(data_src=media)
+    render.update_textures(tex0=texture)
+    group.add_children(render)
+
+    program = Program(fragment=cfg.get_frag('vktexture'),
+                      vertex=cfg.get_vert('vktexture'))
+    quad = Quad((0, 0, 0), (1, 0, 0), (0, 1, 0))
+    render = Render(quad, program)
+    media = Media(m0.filename)
+    texture = Texture2D(data_src=media)
+    render.update_textures(tex0=texture)
+    group.add_children(render)
+
+    return group
+
+
+@scene()
+def vktexture_buffer(cfg):
+    m0 = cfg.medias[0]
+    cfg.duration = m0.duration
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    program = Program(fragment=cfg.get_frag('vktexture'),
+                      vertex=cfg.get_vert('vktexture'))
+    quad = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    render = Render(quad, program)
+
+    # Credits: https://icons8.com/icon/40514/dove
+    icon_filename = op.join(op.dirname(__file__), 'data', 'icons8-dove.raw')
+    cfg.files.append(icon_filename)
+    w, h = (96, 96)
+    cfg.aspect_ratio = (w, h)
+
+    img_buf = BufferUBVec4(filename=icon_filename, name='icon raw buffer')
+    texture = Texture2D(data_src=img_buf, width=w, height=h)
+    render.update_textures(tex0=texture)
+
+    return render

@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -29,6 +30,9 @@
 #include "nodegl.h"
 #include "nodes.h"
 
+#ifdef VULKAN_BACKEND
+// TODO
+#else
 static const struct param_choices usage_choices = {
     .name = "buffer_usage",
     .consts = {
@@ -53,6 +57,7 @@ static const struct param_choices usage_choices = {
         {NULL}
     }
 };
+#endif
 
 #define OFFSET(x) offsetof(struct buffer, x)
 static const struct node_param buffer_params[] = {
@@ -64,9 +69,13 @@ static const struct node_param buffer_params[] = {
                .desc=NGLI_DOCSTRING("filename from which the buffer will be read, cannot be used with `data`")},
     {"stride", PARAM_TYPE_INT,    OFFSET(data_stride),
                .desc=NGLI_DOCSTRING("stride of 1 element, in bytes")},
+#ifdef VULKAN_BACKEND
+// TODO
+#else
     {"usage",  PARAM_TYPE_SELECT, OFFSET(usage),  {.i64=GL_STATIC_DRAW},
                .desc=NGLI_DOCSTRING("buffer usage hint"),
                .choices=&usage_choices},
+#endif
     {NULL}
 };
 

@@ -64,6 +64,9 @@ static const struct node_param rtt_params[] = {
     {NULL}
 };
 
+#ifdef VULKAN_BACKEND
+// TODO
+#else
 static GLenum get_depth_attachment(GLenum format)
 {
     switch (format) {
@@ -94,6 +97,7 @@ static GLuint create_renderbuffer(struct glcontext *gl, GLenum attachment, GLenu
     ngli_glFramebufferRenderbuffer(gl, GL_FRAMEBUFFER, attachment, GL_RENDERBUFFER, id);
     return id;
 }
+#endif
 
 static int rtt_init(struct ngl_node *node)
 {
@@ -105,6 +109,9 @@ static int rtt_init(struct ngl_node *node)
     return 0;
 }
 
+#ifdef VULKAN_BACKEND
+// TODO
+#else
 static int rtt_prefetch(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -361,15 +368,18 @@ static void rtt_release(struct ngl_node *node)
 
     ngli_glBindFramebuffer(gl, GL_FRAMEBUFFER, framebuffer_id);
 }
+#endif
 
 const struct node_class ngli_rtt_class = {
     .id        = NGL_NODE_RENDERTOTEXTURE,
     .name      = "RenderToTexture",
     .init      = rtt_init,
+#ifndef VULKAN_BACKEND
     .prefetch  = rtt_prefetch,
     .update    = rtt_update,
     .draw      = rtt_draw,
     .release   = rtt_release,
+#endif
     .priv_size = sizeof(struct rtt),
     .params    = rtt_params,
     .file      = __FILE__,

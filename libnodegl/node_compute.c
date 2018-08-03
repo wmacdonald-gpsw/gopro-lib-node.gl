@@ -82,6 +82,7 @@ static const struct node_param compute_params[] = {
 
 static int compute_init(struct ngl_node *node)
 {
+#ifndef VULKAN_BACKEND
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
 
@@ -105,6 +106,7 @@ static int compute_init(struct ngl_node *node)
             gl->max_compute_work_group_counts[2]);
         return -1;
     }
+#endif
 
     return ngli_pipeline_init(node);
 }
@@ -121,6 +123,9 @@ static int compute_update(struct ngl_node *node, double t)
 
 static void compute_draw(struct ngl_node *node)
 {
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
 
@@ -137,6 +142,7 @@ static void compute_draw(struct ngl_node *node)
     ngli_glMemoryBarrier(gl, GL_ALL_BARRIER_BITS);
     ngli_glDispatchCompute(gl, s->nb_group_x, s->nb_group_y, s->nb_group_z);
     ngli_glMemoryBarrier(gl, GL_ALL_BARRIER_BITS);
+#endif
 }
 
 const struct node_class ngli_compute_class = {

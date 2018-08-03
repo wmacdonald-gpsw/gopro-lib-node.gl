@@ -23,6 +23,19 @@
 #define GLSTATE_H
 
 struct glstate {
+#ifdef VULKAN_BACKEND
+    VkBool32 blend;
+    VkBlendFactor            blend_dst_factor;
+    VkBlendFactor            blend_src_factor;
+    VkBlendFactor            blend_dst_factor_a;
+    VkBlendFactor            blend_src_factor_a;
+    VkBlendOp                blend_op;
+    VkBlendOp                blend_op_a;
+
+    VkColorComponentFlags    color_write_mask;
+
+    // TODO depth/stencil
+#else
     GLenum blend;
     GLenum blend_dst_factor;
     GLenum blend_src_factor;
@@ -48,6 +61,7 @@ struct glstate {
 
     GLboolean cull_face;
     GLenum cull_face_mode;
+#endif
 };
 
 void ngli_glstate_probe(const struct glcontext *gl,
