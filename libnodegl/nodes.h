@@ -35,9 +35,15 @@
 #include <CoreVideo/CoreVideo.h>
 #endif
 
+#ifdef VULKAN_BACKEND
+#include <vulkan/vulkan.h>
+#else
 #include "glincludes.h"
+#endif
+
 #include "glcontext.h"
 #include "glstate.h"
+
 #include "hmap.h"
 #include "nodegl.h"
 #include "params.h"
@@ -151,8 +157,12 @@ struct camera {
     int hflip;
     uint8_t *pipe_buf;
 
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     GLuint framebuffer_id;
     GLuint texture_id;
+#endif
 };
 
 struct geometry {
@@ -179,7 +189,7 @@ struct geometry {
     struct ngl_node *normals_buffer;
     struct ngl_node *indices_buffer;
 
-    GLenum topology;
+    int topology;
 };
 
 struct ngl_node *ngli_geometry_generate_buffer(struct ngl_ctx *ctx, int type, int count, int size, void *data);
@@ -192,8 +202,13 @@ struct buffer {
     char *filename;         // filename from which the data will be read
     int data_comp;          // number of components per element
     int data_stride;        // stride of 1 element, in bytes
-    GLenum usage;
     int data_format;        // any of NGLI_FORMAT_*
+
+#ifdef VULKAN_BACKEND
+    // XXX: usage?
+#else
+    GLenum usage;
+#endif
 
     /* animatedbuffer */
     struct ngl_node **animkf;
@@ -206,7 +221,14 @@ struct buffer {
      * the generation of a GL buffer feed with the buffer data; mandatory for
      * buffers used as geometry, attributes or shader storage buffer objects */
     int generate_gl_buffer;
+
+#ifdef VULKAN_BACKEND
+    // TODO
+    VkBuffer vkbuf;
+    VkDeviceMemory vkmem;
+#else
     GLuint buffer_id;
+#endif
 };
 
 struct uniform {
@@ -225,6 +247,10 @@ struct rtt {
     int samples;
     int width;
     int height;
+
+#ifdef VULKAN_BACKEND
+    // TODO
+#else
     GLuint framebuffer_id;
     GLuint renderbuffer_id;
     GLuint stencilbuffer_id;
@@ -232,9 +258,26 @@ struct rtt {
     GLuint framebuffer_ms_id;
     GLuint colorbuffer_ms_id;
     GLuint depthbuffer_ms_id;
+#endif
 };
 
 struct program {
+#ifdef VULKAN_BACKEND
+    // TODO: remove binary data
+    uint8_t *vert_data;
+    int vert_data_size;
+    uint8_t *frag_data;
+    int frag_data_size;
+    uint8_t *compute_data;
+    int compute_data_size;
+
+    VkShaderModule vert_shader;
+    VkShaderModule frag_shader;
+    VkPipelineShaderStageCreateInfo shader_stage_create_info[2];
+
+    struct shader_reflection *vert_reflection;
+    struct shader_reflection *frag_reflection;
+#else
     const char *vertex;
     const char *fragment;
     const char *compute;
@@ -242,6 +285,7 @@ struct program {
     GLuint program_id;
     struct hmap *active_uniforms;
     struct hmap *active_attributes;
+#endif
 };
 
 enum hwupload_fmt {
@@ -261,11 +305,32 @@ enum {
     NGLI_FORMATS(DECLARE_FORMAT)
 };
 
+#ifdef VULKAN_BACKEND
+int ngli_format_get_vk_format(struct glcontext *vk, int data_format, VkFormat *format);
+#else
 int ngli_format_get_gl_format_type(struct glcontext *gl, int data_format,
                                    GLint *format, GLint *internal_format, GLenum *type);
+#endif
 
 struct texture {
     int data_format;
+
+#ifdef VULKAN_BACKEND
+    int width;
+    int height;
+    int depth;
+
+    VkFilter min_filter;
+    VkFilter mag_filter;
+
+    int wrap_s;
+    int wrap_t;
+    int wrap_r;
+
+    struct ngl_node *data_src;
+    int direct_rendering;
+    int immutable;
+#else
     GLenum target;
     GLint format;
     GLint internal_format;
@@ -290,6 +355,7 @@ struct texture {
     GLuint id;
     GLuint local_id;
     GLenum local_target;
+#endif
 
     enum hwupload_fmt upload_fmt;
     struct ngl_node *quad;
@@ -310,6 +376,7 @@ int ngli_texture_update_local_texture(struct ngl_node *node,
                                       int width, int height, int depth,
                                       const uint8_t *data);
 
+#ifndef VULKAN_BACKEND
 struct uniformprograminfo {
     GLint id;
     GLint size;
@@ -322,6 +389,7 @@ struct attributeprograminfo {
     GLint size;
     GLenum type;
 };
+#endif
 
 #define NGLI_SAMPLING_MODE_NONE         0
 #define NGLI_SAMPLING_MODE_2D           1
@@ -364,11 +432,36 @@ struct pipeline {
     int disabled_texture_unit;
 
     struct hmap *uniforms;
-    struct nodeprograminfopair *uniform_pairs; // (uniform, uniformprograminfo)
+    struct nodeprograminfopair *uniform_pairs; // (uniform, uniformprograminfo/shader_variable_reflection)
     int nb_uniform_pairs;
 
     struct hmap *buffers;
+
+#ifdef VULKAN_BACKEND
+    int last_width;
+    int last_height;
+
+    VkPipelineLayout pipeline_layout;
+    VkPipeline vkpipeline;
+    VkCommandBuffer *command_buffers;
+    int nb_command_buffers; // XXX drop for vk->nb_framebuffers
+
+    VkResult (*create_func)(struct ngl_node *node, VkPipeline *pipeline_dstp);
+    int queue_family_id;
+    VkCommandPool command_pool;
+
+    VkDescriptorPool descriptor_pool;
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorSet *descriptor_sets;
+
+    VkBuffer *uniform_buffers;
+    uint32_t *uniform_buffer_sizes;
+    uint32_t nb_uniform_buffers;
+    VkDeviceMemory *uniform_device_memory;
+    uint32_t uniform_device_memory_size;
+#else
     GLint *buffer_ids;
+#endif
 };
 
 struct render {
@@ -379,12 +472,19 @@ struct render {
     struct hmap *attributes;
     struct nodeprograminfopair *attribute_pairs; // (attribute, attributeprograminfo)
     int nb_attribute_pairs;
-
-    GLint modelview_matrix_location_id;
-    GLint projection_matrix_location_id;
-    GLint normal_matrix_location_id;
+#ifdef VULKAN_BACKEND
+    VkVertexInputBindingDescription *bind_descs;
+    VkVertexInputAttributeDescription *attr_descs;
+    VkBuffer *vkbufs;
+    VkDeviceSize *vkbufs_offsets;
+    int nb_binds;
+#else
+    int modelview_matrix_location_id;
+    int projection_matrix_location_id;
+    int normal_matrix_location_id;
 
     GLuint vao_id;
+#endif
 };
 
 struct compute {
@@ -415,11 +515,14 @@ struct media {
     struct sxplayer_ctx *player;
     struct sxplayer_frame *frame;
 
+#ifdef VULKAN_BACKEND
+#else
 #if defined(TARGET_ANDROID)
     GLuint android_texture_id;
     GLenum android_texture_target;
     struct android_surface *android_surface;
     struct android_handlerthread *android_handlerthread;
+#endif
 #endif
 };
 
@@ -555,12 +658,14 @@ struct hud {
     int64_t graph_min;
     int64_t graph_max;
 
+#ifndef VULKAN_BACKEND
     GLuint query;
     void (*glGenQueries)(const struct glcontext *gl, GLsizei n, GLuint * ids);
     void (*glDeleteQueries)(const struct glcontext *gl, GLsizei n, const GLuint * ids);
     void (*glBeginQuery)(const struct glcontext *gl, GLenum target, GLuint id);
     void (*glEndQuery)(const struct glcontext *gl, GLenum target);
     void (*glGetQueryObjectui64v)(const struct glcontext *gl, GLuint id, GLenum pname, GLuint64 *params);
+#endif
 };
 
 /**

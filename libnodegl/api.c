@@ -168,18 +168,28 @@ static void *worker_thread(void *arg)
     return NULL;
 }
 
-#if defined(TARGET_IPHONE) || defined(TARGET_ANDROID)
+#if defined(VULKAN_BACKEND)
+# define DEFAULT_BACKEND NGL_BACKEND_VULKAN
+#elif defined(TARGET_IPHONE) || defined(TARGET_ANDROID)
 # define DEFAULT_BACKEND NGL_BACKEND_OPENGLES
 #else
 # define DEFAULT_BACKEND NGL_BACKEND_OPENGL
 #endif
 
+#ifdef VULKAN_BACKEND
+extern const struct backend ngli_backend_vk;
+#else
 extern const struct backend ngli_backend_gl;
 extern const struct backend ngli_backend_gles;
+#endif
 
 static const struct backend *backend_map[] = {
+#ifdef VULKAN_BACKEND
+    [NGL_BACKEND_VULKAN]   = &ngli_backend_vk,
+#else
     [NGL_BACKEND_OPENGL]   = &ngli_backend_gl,
     [NGL_BACKEND_OPENGLES] = &ngli_backend_gles,
+#endif
 };
 
 static int get_default_platform(void)
@@ -285,6 +295,13 @@ int ngl_configure(struct ngl_ctx *s, struct ngl_config *config)
 
     if (s->configured)
         return reconfigure(s, config);
+
+#ifdef VULKAN_BACKEND
+    if (config->wrapped) {
+        LOG(ERROR, "wrapped mode unsupported with Vulkan");
+        return -1;
+    }
+#endif
 
     s->has_thread = !config->wrapped;
     if (s->has_thread) {

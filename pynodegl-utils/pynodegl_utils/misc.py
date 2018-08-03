@@ -1,3 +1,4 @@
+import array
 import os.path as op
 import platform
 import math
@@ -46,24 +47,6 @@ def scene(**widgets_specs):
         return func_wrapper
 
     return real_decorator
-
-
-def get_shader(filename, shader_path=None):
-    if shader_path is None:
-        shader_path = op.join(op.dirname(__file__), 'examples', 'shaders')
-    return open(op.join(shader_path, filename)).read()
-
-
-def get_frag(name, shader_path=None):
-    return get_shader(name + '.frag', shader_path)
-
-
-def get_vert(name, shader_path=None):
-    return get_shader(name + '.vert', shader_path)
-
-
-def get_comp(name, shader_path=None):
-    return get_shader(name + '.comp', shader_path)
 
 
 class Media:
@@ -120,7 +103,7 @@ class SceneCfg:
         'aspect_ratio': (16, 9),
         'duration': 30.0,
         'framerate': (60, 1),
-        'backend': 'gl',
+        'backend': 'vk',
         'samples': 0,
         'system': platform.system(),
         'files': [],
@@ -144,6 +127,8 @@ class SceneCfg:
                     raise Exception('Unable to create a media file using ffmpeg (ret=%d)' % ret)
             self.medias = [Media(media_file)]
 
+        self._get_shader = self._get_vk_shader if self.backend == 'vk' else self._get_gl_shader
+
     @property
     def aspect_ratio_float(self):
         return self.aspect_ratio[0] / float(self.aspect_ratio[1])
@@ -153,6 +138,31 @@ class SceneCfg:
         for field in self._DEFAULT_FIELDS.keys():
             odict[field] = getattr(self, field)
         return odict
+
+    def _get_vk_shader(self, name, stype, shader_path):
+        if shader_path is None:
+            shader_path = op.join(op.dirname(__file__), 'examples', 'shaders', 'vk')
+        src_path = op.join(shader_path, '%s.%s' % (name, stype))
+        dst_path = op.join(shader_path, '%s-%s.spv' % (name, stype))
+        print 'SPV: %s -> %s' % (src_path, dst_path)
+        ret = subprocess.call(['glslangValidator', '-V', '-o', dst_path, src_path])
+        assert ret == 0
+        return array.array('b', open(dst_path).read())
+
+    def _get_gl_shader(self, name, stype, shader_path):
+        filename = '%s.%s' % (name, stype)
+        if shader_path is None:
+            shader_path = op.join(op.dirname(__file__), 'examples', 'shaders')
+        return open(op.join(shader_path, filename)).read()
+
+    def get_frag(self, name, shader_path=None):
+        return self._get_shader(name, 'frag', shader_path)
+
+    def get_vert(self, name, shader_path=None):
+        return self._get_shader(name, 'vert', shader_path)
+
+    def get_comp(self, name, shader_path=None):
+        return self._get_shader(name, 'comp', shader_path)
 
 
 def get_viewport(width, height, aspect_ratio):
@@ -170,5 +180,6 @@ def get_backend(backend):
     backend_map = {
         'gl': ngl.BACKEND_OPENGL,
         'gles': ngl.BACKEND_OPENGLES,
+        'vk': ngl.BACKEND_VULKAN,
     }
     return backend_map[backend]

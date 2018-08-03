@@ -34,12 +34,18 @@
 static const struct param_choices minfilter_choices = {
     .name = "min_filter",
     .consts = {
+#ifdef VULKAN_BACKEND
+        {"nearest",                VK_FILTER_NEAREST,         .desc=NGLI_DOCSTRING("nearest filtering")},
+        {"linear",                 VK_FILTER_LINEAR,          .desc=NGLI_DOCSTRING("linear filtering")},
+        // FIXME mipmap
+#else
         {"nearest",                GL_NEAREST,                .desc=NGLI_DOCSTRING("nearest filtering")},
         {"linear",                 GL_LINEAR,                 .desc=NGLI_DOCSTRING("linear filtering")},
         {"nearest_mipmap_nearest", GL_NEAREST_MIPMAP_NEAREST, .desc=NGLI_DOCSTRING("nearest filtering, nearest mipmap filtering")},
         {"linear_mipmap_nearest",  GL_LINEAR_MIPMAP_NEAREST,  .desc=NGLI_DOCSTRING("linear filtering, nearest mipmap filtering")},
         {"nearest_mipmap_linear",  GL_NEAREST_MIPMAP_LINEAR,  .desc=NGLI_DOCSTRING("nearest filtering, linear mipmap filtering")},
         {"linear_mipmap_linear",   GL_LINEAR_MIPMAP_LINEAR,   .desc=NGLI_DOCSTRING("linear filtering, linear mipmap filtering")},
+#endif
         {NULL}
     }
 };
@@ -47,8 +53,13 @@ static const struct param_choices minfilter_choices = {
 static const struct param_choices magfilter_choices = {
     .name = "mag_filter",
     .consts = {
+#ifdef VULKAN_BACKEND
+        {"nearest", VK_FILTER_NEAREST, .desc=NGLI_DOCSTRING("nearest filtering")},
+        {"linear",  VK_FILTER_LINEAR,  .desc=NGLI_DOCSTRING("linear filtering")},
+#else
         {"nearest", GL_NEAREST, .desc=NGLI_DOCSTRING("nearest filtering")},
         {"linear",  GL_LINEAR,  .desc=NGLI_DOCSTRING("linear filtering")},
+#endif
         {NULL}
     }
 };
@@ -56,13 +67,22 @@ static const struct param_choices magfilter_choices = {
 static const struct param_choices wrap_choices = {
     .name = "wrap",
     .consts = {
+#ifdef VULKAN_BACKEND
+        {"clamp_to_edge",   VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,   .desc=NGLI_DOCSTRING("clamp to edge wrapping")},
+        {"mirrored_repeat", VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT, .desc=NGLI_DOCSTRING("mirrored repeat wrapping")},
+        {"repeat",          VK_SAMPLER_ADDRESS_MODE_REPEAT,          .desc=NGLI_DOCSTRING("repeat pattern wrapping")},
+        //VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER = 3,
+        //VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE = 4,
+#else
         {"clamp_to_edge",   GL_CLAMP_TO_EDGE,   .desc=NGLI_DOCSTRING("clamp to edge wrapping")},
         {"mirrored_repeat", GL_MIRRORED_REPEAT, .desc=NGLI_DOCSTRING("mirrored repeat wrapping")},
         {"repeat",          GL_REPEAT,          .desc=NGLI_DOCSTRING("repeat pattern wrapping")},
+#endif
         {NULL}
     }
 };
 
+#ifndef VULKAN_BACKEND
 static const struct param_choices access_choices = {
     .name = "access",
     .consts = {
@@ -72,6 +92,7 @@ static const struct param_choices access_choices = {
         {NULL}
     }
 };
+#endif
 
 #define DECLARE_FORMAT_PARAM(format, name, doc) \
     {name, format, .desc=NGLI_DOCSTRING(doc)},
@@ -136,6 +157,17 @@ static const struct node_param texture2d_params[] = {
               .desc=NGLI_DOCSTRING("width of the texture")},
     {"height", PARAM_TYPE_INT, OFFSET(height), {.i64=0},
                .desc=NGLI_DOCSTRING("height of the texture")},
+#ifdef VULKAN_BACKEND
+    // TODO
+    {"min_filter", PARAM_TYPE_SELECT, OFFSET(min_filter), {.i64=VK_FILTER_NEAREST}, .choices=&minfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture minifying function")},
+    {"mag_filter", PARAM_TYPE_SELECT, OFFSET(mag_filter), {.i64=VK_FILTER_NEAREST}, .choices=&magfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture magnification function")},
+    {"wrap_s", PARAM_TYPE_SELECT, OFFSET(wrap_s), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the s dimension (horizontal)")},
+    {"wrap_t", PARAM_TYPE_SELECT, OFFSET(wrap_t), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the t dimension (vertical)")},
+#else
     {"min_filter", PARAM_TYPE_SELECT, OFFSET(min_filter), {.i64=GL_NEAREST}, .choices=&minfilter_choices,
                    .desc=NGLI_DOCSTRING("texture minifying function")},
     {"mag_filter", PARAM_TYPE_SELECT, OFFSET(mag_filter), {.i64=GL_NEAREST}, .choices=&magfilter_choices,
@@ -148,6 +180,7 @@ static const struct node_param texture2d_params[] = {
                  .desc=NGLI_DOCSTRING("data source")},
     {"access", PARAM_TYPE_SELECT, OFFSET(access), {.i64=GL_READ_WRITE}, .choices=&access_choices,
                .desc=NGLI_DOCSTRING("texture access (only honored by the `Compute` node)")},
+#endif
     {"direct_rendering", PARAM_TYPE_BOOL, OFFSET(direct_rendering), {.i64=-1},
                          .desc=NGLI_DOCSTRING("whether direct rendering is enabled or not for media playback")},
     {NULL}
@@ -162,6 +195,19 @@ static const struct node_param texture3d_params[] = {
                .desc=NGLI_DOCSTRING("height of the texture")},
     {"depth", PARAM_TYPE_INT, OFFSET(depth), {.i64=0},
                .desc=NGLI_DOCSTRING("depth of the texture")},
+#ifdef VULKAN_BACKEND
+    // TODO
+    {"min_filter", PARAM_TYPE_SELECT, OFFSET(min_filter), {.i64=VK_FILTER_NEAREST}, .choices=&minfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture minifying function")},
+    {"mag_filter", PARAM_TYPE_SELECT, OFFSET(mag_filter), {.i64=VK_FILTER_NEAREST}, .choices=&magfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture magnification function")},
+    {"wrap_s", PARAM_TYPE_SELECT, OFFSET(wrap_s), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the s dimension (horizontal)")},
+    {"wrap_t", PARAM_TYPE_SELECT, OFFSET(wrap_t), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the t dimension (vertical)")},
+    {"wrap_r", PARAM_TYPE_SELECT, OFFSET(wrap_r), {.i64=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the r dimension (depth)")},
+#else
     {"min_filter", PARAM_TYPE_SELECT, OFFSET(min_filter), {.i64=GL_NEAREST}, .choices=&minfilter_choices,
                    .desc=NGLI_DOCSTRING("texture minifying function")},
     {"mag_filter", PARAM_TYPE_SELECT, OFFSET(mag_filter), {.i64=GL_NEAREST}, .choices=&magfilter_choices,
@@ -176,9 +222,89 @@ static const struct node_param texture3d_params[] = {
                  .desc=NGLI_DOCSTRING("data source")},
     {"access", PARAM_TYPE_SELECT, OFFSET(access), {.i64=GL_READ_WRITE}, .choices=&access_choices,
                .desc=NGLI_DOCSTRING("texture access (only honored by the `Compute` node)")},
+#endif
     {NULL}
 };
 
+#ifdef VULKAN_BACKEND
+int ngli_format_get_vk_format(struct glcontext *vk, int data_format, VkFormat *format)
+{
+    static const struct entry {
+        VkFormat format;
+    } format_map[] = {
+        [NGLI_FORMAT_UNDEFINED]            = {VK_FORMAT_UNDEFINED},
+        [NGLI_FORMAT_R8_UNORM]             = {VK_FORMAT_R8_UNORM},
+        [NGLI_FORMAT_R8_SNORM]             = {VK_FORMAT_R8_SNORM},
+        [NGLI_FORMAT_R8_UINT]              = {VK_FORMAT_R8_UINT},
+        [NGLI_FORMAT_R8_SINT]              = {VK_FORMAT_R8_SINT},
+        [NGLI_FORMAT_R8G8_UNORM]           = {VK_FORMAT_R8G8_UNORM},
+        [NGLI_FORMAT_R8G8_SNORM]           = {VK_FORMAT_R8G8_SNORM},
+        [NGLI_FORMAT_R8G8_UINT]            = {VK_FORMAT_R8G8_UINT},
+        [NGLI_FORMAT_R8G8_SINT]            = {VK_FORMAT_R8G8_SINT},
+        [NGLI_FORMAT_R8G8B8_UNORM]         = {VK_FORMAT_R8G8B8_UNORM},
+        [NGLI_FORMAT_R8G8B8_SNORM]         = {VK_FORMAT_R8G8B8_SNORM},
+        [NGLI_FORMAT_R8G8B8_UINT]          = {VK_FORMAT_R8G8B8_UINT},
+        [NGLI_FORMAT_R8G8B8_SINT]          = {VK_FORMAT_R8G8B8_SINT},
+        [NGLI_FORMAT_R8G8B8_SRGB]          = {VK_FORMAT_R8G8B8_SRGB},
+        [NGLI_FORMAT_R8G8B8A8_UNORM]       = {VK_FORMAT_R8G8B8A8_UNORM},
+        [NGLI_FORMAT_R8G8B8A8_SNORM]       = {VK_FORMAT_R8G8B8A8_SNORM},
+        [NGLI_FORMAT_R8G8B8A8_UINT]        = {VK_FORMAT_R8G8B8A8_UINT},
+        [NGLI_FORMAT_R8G8B8A8_SINT]        = {VK_FORMAT_R8G8B8A8_SINT},
+        [NGLI_FORMAT_R8G8B8A8_SRGB]        = {VK_FORMAT_R8G8B8A8_SRGB},
+        [NGLI_FORMAT_B8G8R8A8_UNORM]       = {VK_FORMAT_B8G8R8A8_UNORM},
+        [NGLI_FORMAT_B8G8R8A8_SNORM]       = {VK_FORMAT_B8G8R8A8_SNORM},
+        [NGLI_FORMAT_B8G8R8A8_UINT]        = {VK_FORMAT_B8G8R8A8_UINT},
+        [NGLI_FORMAT_B8G8R8A8_SINT]        = {VK_FORMAT_B8G8R8A8_SINT},
+        [NGLI_FORMAT_R16_UNORM]            = {VK_FORMAT_R16_UNORM},
+        [NGLI_FORMAT_R16_SNORM]            = {VK_FORMAT_R16_SNORM},
+        [NGLI_FORMAT_R16_UINT]             = {VK_FORMAT_R16_UINT},
+        [NGLI_FORMAT_R16_SINT]             = {VK_FORMAT_R16_SINT},
+        [NGLI_FORMAT_R16_SFLOAT]           = {VK_FORMAT_R16_SFLOAT},
+        [NGLI_FORMAT_R16G16_UNORM]         = {VK_FORMAT_R16G16_UNORM},
+        [NGLI_FORMAT_R16G16_SNORM]         = {VK_FORMAT_R16G16_SNORM},
+        [NGLI_FORMAT_R16G16_UINT]          = {VK_FORMAT_R16G16_UINT},
+        [NGLI_FORMAT_R16G16_SINT]          = {VK_FORMAT_R16G16_SINT},
+        [NGLI_FORMAT_R16G16_SFLOAT]        = {VK_FORMAT_R16G16_SFLOAT},
+        [NGLI_FORMAT_R16G16B16_UNORM]      = {VK_FORMAT_R16G16B16_UNORM},
+        [NGLI_FORMAT_R16G16B16_SNORM]      = {VK_FORMAT_R16G16B16_SNORM},
+        [NGLI_FORMAT_R16G16B16_UINT]       = {VK_FORMAT_R16G16B16_UINT},
+        [NGLI_FORMAT_R16G16B16_SINT]       = {VK_FORMAT_R16G16B16_SINT},
+        [NGLI_FORMAT_R16G16B16_SFLOAT]     = {VK_FORMAT_R16G16B16_SFLOAT},
+        [NGLI_FORMAT_R16G16B16A16_UNORM]   = {VK_FORMAT_R16G16B16A16_UNORM},
+        [NGLI_FORMAT_R16G16B16A16_SNORM]   = {VK_FORMAT_R16G16B16A16_SNORM},
+        [NGLI_FORMAT_R16G16B16A16_UINT]    = {VK_FORMAT_R16G16B16A16_UINT},
+        [NGLI_FORMAT_R16G16B16A16_SINT]    = {VK_FORMAT_R16G16B16A16_SINT},
+        [NGLI_FORMAT_R16G16B16A16_SFLOAT]  = {VK_FORMAT_R16G16B16A16_SFLOAT},
+        [NGLI_FORMAT_R32_UINT]             = {VK_FORMAT_R32_UINT},
+        [NGLI_FORMAT_R32_SINT]             = {VK_FORMAT_R32_SINT},
+        [NGLI_FORMAT_R32_SFLOAT]           = {VK_FORMAT_R32_SFLOAT},
+        [NGLI_FORMAT_R32G32_UINT]          = {VK_FORMAT_R32G32_UINT},
+        [NGLI_FORMAT_R32G32_SINT]          = {VK_FORMAT_R32G32_SINT},
+        [NGLI_FORMAT_R32G32_SFLOAT]        = {VK_FORMAT_R32G32_SFLOAT},
+        [NGLI_FORMAT_R32G32B32_UINT]       = {VK_FORMAT_R32G32B32_UINT},
+        [NGLI_FORMAT_R32G32B32_SINT]       = {VK_FORMAT_R32G32B32_SINT},
+        [NGLI_FORMAT_R32G32B32_SFLOAT]     = {VK_FORMAT_R32G32B32_SFLOAT},
+        [NGLI_FORMAT_R32G32B32A32_UINT]    = {VK_FORMAT_R32G32B32A32_UINT},
+        [NGLI_FORMAT_R32G32B32A32_SINT]    = {VK_FORMAT_R32G32B32A32_SINT},
+        [NGLI_FORMAT_R32G32B32A32_SFLOAT]  = {VK_FORMAT_R32G32B32A32_SFLOAT},
+        [NGLI_FORMAT_D16_UNORM]            = {VK_FORMAT_D16_UNORM},
+        [NGLI_FORMAT_X8_D24_UNORM_PACK32]  = {VK_FORMAT_X8_D24_UNORM_PACK32},
+        [NGLI_FORMAT_D32_SFLOAT]           = {VK_FORMAT_D32_SFLOAT},
+        [NGLI_FORMAT_D24_UNORM_S8_UINT]    = {VK_FORMAT_D24_UNORM_S8_UINT},
+        [NGLI_FORMAT_D32_SFLOAT_S8_UINT]   = {VK_FORMAT_D32_SFLOAT_S8_UINT},
+    };
+
+    ngli_assert(data_format >= 0 && data_format < NGLI_ARRAY_NB(format_map));
+    const struct entry *entry = &format_map[data_format];
+
+    ngli_assert(data_format == NGLI_FORMAT_UNDEFINED || entry->format);
+
+    if (format)
+        *format = entry->format;
+
+    return 0;
+}
+#else
 int ngli_format_get_gl_format_type(struct glcontext *gl, int data_format,
                                    GLint *formatp, GLint *internal_formatp, GLenum *typep)
 {
@@ -620,13 +746,16 @@ static int texture3d_init(struct ngl_node *node)
     }
     return 0;
 }
+#endif
 
 const struct node_class ngli_texture2d_class = {
     .id        = NGL_NODE_TEXTURE2D,
     .name      = "Texture2D",
+#ifndef VULKAN_BACKEND // FIXME
     .prefetch  = texture2d_prefetch,
     .update    = texture_update,
     .release   = texture_release,
+#endif
     .priv_size = sizeof(struct texture),
     .params    = texture2d_params,
     .file      = __FILE__,
@@ -635,10 +764,12 @@ const struct node_class ngli_texture2d_class = {
 const struct node_class ngli_texture3d_class = {
     .id        = NGL_NODE_TEXTURE3D,
     .name      = "Texture3D",
+#ifndef VULKAN_BACKEND // FIXME
     .init      = texture3d_init,
     .prefetch  = texture3d_prefetch,
     .update    = texture_update,
     .release   = texture_release,
+#endif
     .priv_size = sizeof(struct texture),
     .params    = texture3d_params,
     .file      = __FILE__,

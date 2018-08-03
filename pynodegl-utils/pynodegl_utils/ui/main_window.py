@@ -243,7 +243,7 @@ class MainWindow(QtWidgets.QSplitter):
             # The graphic backend can be different when using hooks: the scene might
             # be rendered on a remote device different from the one constructing
             # the scene graph
-            backend = self._get_hook_output('get_gl_backend')
+            backend = self._get_hook_output('get_backend')
             system = self._get_hook_output('get_system')
             cfg = self._get_scene(backend=backend, system=system)
             if not cfg:

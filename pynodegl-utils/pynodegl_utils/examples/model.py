@@ -17,7 +17,7 @@ from pynodegl import (
         Scale,
 )
 
-from pynodegl_utils.misc import scene, get_frag
+from pynodegl_utils.misc import scene
 
 
 def _load_model(fp):
@@ -96,7 +96,7 @@ def obj(cfg, n=0.5, model=None):
     q = Geometry(vertices, texcoords, normals)
     m = Media(cfg.medias[0].filename)
     t = Texture2D(data_src=m)
-    p = Program(fragment=get_frag('tex-tint-normals'))
+    p = Program(fragment=cfg.get_frag('tex-tint-normals'))
     render = Render(q, p)
     render.update_textures(tex0=t)
     render = GraphicConfig(render, depth_test=True)
@@ -145,7 +145,7 @@ def stl(cfg, stl=None, scale=.8):
     normals  = BufferVec3(data=normals_data)
 
     g = Geometry(vertices=vertices, normals=normals)
-    p = Program(fragment=get_frag('colored-normals'))
+    p = Program(fragment=cfg.get_frag('colored-normals'))
     solid = Render(g, p, name=solid_name)
     solid = GraphicConfig(solid, depth_test=True)
 

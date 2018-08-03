@@ -19,23 +19,35 @@
  * under the License.
  */
 
-#include <GLFW/glfw3.h>
-#define GLFW_EXPOSE_NATIVE_COCOA
-#include <GLFW/glfw3native.h>
-#include <nodegl.h>
+#ifndef SPIRV_H
+#define SPIRV_H
 
-#include "wsi.h"
+#include <stdint.h>
 
-int wsi_set_ngl_config(struct ngl_config *config, GLFWwindow *window)
-{
-    NSWindow *nswindow = glfwGetCocoaWindow(window);
-    NSView *view = [nswindow contentView];
+enum {
+    NGLI_SHADER_VARIABLE_INPUT   = 1 << 0,
+    NGLI_SHADER_VARIABLE_OUTPUT  = 1 << 1,
+    NGLI_SHADER_BUFFER_UNIFORM   = 1 << 2,
+    NGLI_SHADER_BUFFER_CONSTANT  = 1 << 3,
+};
 
-    // HACK: should be in libnodegl?
-    NSBundle *bundle = [NSBundle bundleWithPath:@"/System/Library/Frameworks/QuartzCore.framework"];
-    view.layer = [[bundle classNamed:@"CAMetalLayer"] layer];
+struct shader_variable_reflection {
+    uint16_t offset;
+    uint8_t flag;
+};
 
-    config->window = (uintptr_t)view;
+struct shader_buffer_reflection {
+    struct hmap *variables;
+    uint16_t size;
+    uint8_t flag;
+};
 
-    return 0;
-}
+struct shader_reflection {
+    struct hmap *variables;
+    struct hmap *buffers;
+};
+
+struct shader_reflection *ngli_spirv_create_reflection(const uint32_t *code, size_t size);
+void ngli_spirv_destroy_reflection(struct shader_reflection **reflection);
+
+#endif

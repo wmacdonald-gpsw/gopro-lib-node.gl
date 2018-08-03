@@ -24,7 +24,7 @@ from pynodegl import (
         UniformVec4,
 )
 
-from pynodegl_utils.misc import scene, get_frag
+from pynodegl_utils.misc import scene
 
 
 @scene(color={'type': 'color'},
@@ -37,7 +37,7 @@ def animated_square(cfg, color=(1, 0.66, 0, 1), rotate=True, scale=True, transla
 
     sz = 1/3.
     q = Quad((-sz/2, -sz/2, 0), (sz, 0, 0), (0, sz, 0))
-    p = Program(fragment=get_frag('color'))
+    p = Program(fragment=cfg.get_frag('color'))
     node = Render(q, p)
     ucolor = UniformVec4(value=color)
     node.update_uniforms(color=ucolor)
@@ -75,7 +75,7 @@ def animated_uniform(cfg):
     q = Quad((-0.5, -0.5, 0), (1, 0, 0), (0, 1, 0))
     m = Media(m0.filename)
     t = Texture2D(data_src=m)
-    p = Program(fragment=get_frag('matrix-transform'))
+    p = Program(fragment=cfg.get_frag('matrix-transform'))
     ts = Render(q, p)
     ts.update_textures(tex0=t)
 
