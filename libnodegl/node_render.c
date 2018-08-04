@@ -321,17 +321,54 @@ static void render_uninit(struct ngl_node *node)
 
 static int render_update(struct ngl_node *node, double t)
 {
+    LOG(ERROR, ">>> update %s", node->name);
     struct render *s = node->priv_data;
 
     int ret = ngli_node_update(s->geometry, t);
     if (ret < 0)
         return ret;
 
-    return ngli_pipeline_update(node, t);
+    ret = ngli_pipeline_update(node, t);
+    LOG(ERROR, "<<< update %s", node->name);
+    return ret;
+}
+
+static void debug_texture_units(const char *what, const char *name, struct glcontext *gl)
+{
+    LOG(ERROR, "::: %s: %s", name, what);
+
+    int max_tex_units = 0;
+#ifdef GL_MAX_TEXTURE_UNITS
+    glGetIntegerv(GL_MAX_TEXTURE_UNITS, &max_tex_units);
+#else
+    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &max_tex_units);
+#endif
+
+    LOG(ERROR, "TEX UNIT #XX:  1D  2D  3D CUB OES");
+    for (int i = 0; i < max_tex_units; i++) {
+        GLint id[5] = {0};
+        ngli_glActiveTexture(gl, GL_TEXTURE0 + i);
+#ifdef GL_TEXTURE_BINDING_1D
+        ngli_glGetIntegerv(gl, GL_TEXTURE_BINDING_1D, id + 0);
+#endif
+        ngli_glGetIntegerv(gl, GL_TEXTURE_BINDING_2D, id + 1);
+#ifdef GL_TEXTURE_BINDING_3D
+        ngli_glGetIntegerv(gl, GL_TEXTURE_BINDING_3D, id + 2);
+#endif
+        ngli_glGetIntegerv(gl, GL_TEXTURE_BINDING_CUBE_MAP, id + 3);
+#ifdef GL_TEXTURE_BINDING_EXTERNAL_OES
+        ngli_glGetIntegerv(gl, GL_TEXTURE_BINDING_EXTERNAL_OES, id + 4);
+#endif
+        if (id[0] || id[1] || id[2] || id[3] || id[4])
+            LOG(ERROR, "TEX UNIT #%2d: %3d %3d %3d %3d %3d", i,
+                id[0], id[1], id[2], id[3], id[4]);
+    }
+    //ngli_glActiveTexture(gl, GL_TEXTURE0);
 }
 
 static void render_draw(struct ngl_node *node)
 {
+    LOG(ERROR, ">>> draw %s", node->name);
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
 
@@ -348,7 +385,14 @@ static void render_draw(struct ngl_node *node)
 
     update_geometry_uniforms(node);
 
-    ngli_pipeline_upload_data(node);
+    debug_texture_units("BEFORE PIPELINE", node->name, gl);
+
+    int ret = ngli_pipeline_upload_data(node);
+    if (ret < 0) {
+        LOG(ERROR, "pipeline upload data error");
+    }
+
+    debug_texture_units("AFTER PIPELINE", node->name, gl);
 
     const struct geometry *geometry = s->geometry->priv_data;
     const struct buffer *indices_buffer = geometry->indices_buffer->priv_data;
@@ -362,6 +406,7 @@ static void render_draw(struct ngl_node *node)
     if (!(gl->features & NGLI_FEATURE_VERTEX_ARRAY_OBJECT)) {
         disable_vertex_attribs(node);
     }
+    LOG(ERROR, "<<< draw %s", node->name);
 }
 
 const struct node_class ngli_render_class = {

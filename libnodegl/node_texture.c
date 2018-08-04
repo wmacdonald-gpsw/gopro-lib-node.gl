@@ -368,11 +368,11 @@ int ngli_texture_update_local_texture(struct ngl_node *node,
             }
 
             ngli_glGenTextures(gl, 1, &s->local_id);
-            ngli_glBindTexture(gl, s->local_target, s->local_id);
+            ngli_BindTexture(gl, s->local_target, s->local_id);
             tex_set_params(gl, s);
             tex_storage(gl, s);
         } else {
-            ngli_glBindTexture(gl, s->local_target, s->local_id);
+            ngli_BindTexture(gl, s->local_target, s->local_id);
         }
 
         if (data) {
@@ -383,10 +383,10 @@ int ngli_texture_update_local_texture(struct ngl_node *node,
             ret = 1;
 
             ngli_glGenTextures(gl, 1, &s->local_id);
-            ngli_glBindTexture(gl, s->local_target, s->local_id);
+            ngli_BindTexture(gl, s->local_target, s->local_id);
             tex_set_params(gl, s);
         } else {
-            ngli_glBindTexture(gl, s->local_target, s->local_id);
+            ngli_BindTexture(gl, s->local_target, s->local_id);
         }
 
         if (update_dimensions) {
@@ -405,10 +405,13 @@ int ngli_texture_update_local_texture(struct ngl_node *node,
         break;
     }
 
-    ngli_glBindTexture(gl, s->local_target, 0);
+    //ngli_BindTexture(gl, s->target, 0);
+    ngli_BindTexture(gl, s->local_target, 0);
 
     s->id = s->local_id;
+    s->target = s->local_target;
 
+    LOG(ERROR, "%s: local texture id is %d", node->name, s->id);
     return ret;
 }
 
@@ -496,6 +499,8 @@ static int texture_prefetch(struct ngl_node *node, GLenum local_target)
                     s->width = buffer->count;
                     s->height = s->depth = 1;
                 }
+            } else {
+                ngli_assert(0);
             }
             data = buffer->data;
             s->data_format = buffer->data_format;
@@ -543,10 +548,9 @@ static void handle_media_frame(struct ngl_node *node)
 {
     struct texture *s = node->priv_data;
     struct media *media = s->data_src->priv_data;
+    struct sxplayer_frame *frame = media->frame;
 
-    if (media->frame) {
-        struct sxplayer_frame *frame = media->frame;
-
+    if (frame) {
         s->data_src_ts = frame->ts;
         ngli_hwupload_upload_frame(node, frame);
 

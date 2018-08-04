@@ -93,13 +93,13 @@ static int camera_init(struct ngl_node *node)
         struct glcontext *gl = ctx->glcontext;
 
         ngli_glGenTextures(gl, 1, &s->texture_id);
-        ngli_glBindTexture(gl, GL_TEXTURE_2D, s->texture_id);
+        ngli_BindTexture(gl, GL_TEXTURE_2D, s->texture_id);
         ngli_glTexParameteri(gl, GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         ngli_glTexParameteri(gl, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         ngli_glTexParameteri(gl, GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         ngli_glTexParameteri(gl, GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         ngli_glTexImage2D(gl, GL_TEXTURE_2D, 0, GL_RGBA, s->pipe_width, s->pipe_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-        ngli_glBindTexture(gl, GL_TEXTURE_2D, 0);
+        ngli_BindTexture(gl, GL_TEXTURE_2D, 0);
 
         GLuint framebuffer_id;
         ngli_glGetIntegerv(gl, GL_FRAMEBUFFER_BINDING, (GLint *)&framebuffer_id);

@@ -200,15 +200,19 @@ static int rtt_prefetch(struct ngl_node *node)
 
 static int rtt_update(struct ngl_node *node, double t)
 {
+    LOG(ERROR, ">>> RTT update %s", node->name);
     struct rtt *s = node->priv_data;
     int ret = ngli_node_update(s->child, t);
     if (ret < 0)
         return ret;
-    return ngli_node_update(s->color_texture, t);
+    ret = ngli_node_update(s->color_texture, t);
+    LOG(ERROR, "<<< RTT update %s", node->name);
+    return ret;
 }
 
 static void rtt_draw(struct ngl_node *node)
 {
+    LOG(ERROR, ">>> RTT draw %s", node->name);
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
 
@@ -249,8 +253,9 @@ static void rtt_draw(struct ngl_node *node)
     case GL_NEAREST_MIPMAP_LINEAR:
     case GL_LINEAR_MIPMAP_NEAREST:
     case GL_LINEAR_MIPMAP_LINEAR:
-        ngli_glBindTexture(gl, GL_TEXTURE_2D, texture->id);
+        ngli_BindTexture(gl, GL_TEXTURE_2D, texture->id);
         ngli_glGenerateMipmap(gl, GL_TEXTURE_2D);
+        ngli_BindTexture(gl, GL_TEXTURE_2D, 0);
         break;
     }
 
@@ -262,6 +267,8 @@ static void rtt_draw(struct ngl_node *node)
         depth_texture->coordinates_matrix[5] = -1.0f;
         depth_texture->coordinates_matrix[13] = 1.0f;
     }
+
+    LOG(ERROR, "<<< RTT draw %s", node->name);
 }
 
 static void rtt_release(struct ngl_node *node)

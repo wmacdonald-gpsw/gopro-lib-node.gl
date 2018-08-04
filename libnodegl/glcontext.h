@@ -98,6 +98,7 @@ void *ngli_glcontext_get_texture_cache(struct glcontext *glcontext);
 void ngli_glcontext_freep(struct glcontext **glcontext);
 int ngli_glcontext_check_extension(const char *extension, const char *extensions);
 int ngli_glcontext_check_gl_error(const struct glcontext *glcontext, const char *context);
+void ngli_BindTexture(const struct glcontext *gl, GLenum target, GLuint texture);
 
 #include "glwrappers.h"
 

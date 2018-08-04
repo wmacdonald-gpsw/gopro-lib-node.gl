@@ -538,3 +538,24 @@ int ngli_glcontext_check_gl_error(const struct glcontext *glcontext, const char 
 
     return error;
 }
+
+void ngli_BindTexture(const struct glcontext *gl, GLenum target, GLuint texture)
+{
+    GLint tex_unit = 0;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &tex_unit);
+
+    const char *target_str = target == GL_TEXTURE_2D ? "2D"
+                           : target == GL_TEXTURE_3D ? "3D"
+#ifdef GL_TEXTURE_EXTERNAL_OES
+                           : target == GL_TEXTURE_EXTERNAL_OES ? "OES"
+#endif
+                           : "?";
+
+    if (texture)
+        LOG(ERROR, "bind texture id %d on %s slot of tex unit #%d",
+            texture, target_str, tex_unit - GL_TEXTURE0);
+    else
+        LOG(ERROR, "unbind %s slot of tex unit #%d",
+            target_str, tex_unit - GL_TEXTURE0);
+    ngli_glBindTexture(gl, target, texture);
+}

@@ -52,6 +52,7 @@ static int acquire_next_available_texture_unit(uint64_t *used_texture_units)
     for (int i = 0; i < sizeof(*used_texture_units) * 8; i++) {
         if (!(*used_texture_units & (1 << i))) {
             *used_texture_units |= (1 << i);
+            LOG(ERROR, "acquired next available texture unit %d", i);
             return i;
         }
     }
@@ -74,8 +75,15 @@ static int update_default_sampler(const struct glcontext *gl,
 
     *sampling_mode = NGLI_SAMPLING_MODE_2D;
 
+    LOG(ERROR, "ACTIVE TEXTURE UNIT #%d", texture_index);
     ngli_glActiveTexture(gl, GL_TEXTURE0 + texture_index);
-    ngli_glBindTexture(gl, texture->target, texture->id);
+
+    ngli_assert(texture->target == GL_TEXTURE_2D ||
+                texture->target == GL_TEXTURE_3D);
+
+    ngli_BindTexture(gl, texture->target, texture->id);
+
+    LOG(ERROR, "make sampler id %d use texture unit %d", info->sampler_id, texture_index);
     ngli_glUniform1i(gl, info->sampler_id, texture_index);
     return 0;
 }
@@ -93,23 +101,33 @@ static int update_sampler2D(const struct glcontext *gl,
 
         *sampling_mode = NGLI_SAMPLING_MODE_EXTERNAL_OES;
 
-        if (info->sampler_id >= 0)
-            ngli_glUniform1i(gl, info->sampler_id, s->disabled_texture_unit);
-
         int texture_index = acquire_next_available_texture_unit(used_texture_units);
         if (texture_index < 0)
             return -1;
 
+        LOG(ERROR, "ACTIVE TEXTURE UNIT #%d", texture_index);
         ngli_glActiveTexture(gl, GL_TEXTURE0 + texture_index);
-        ngli_glBindTexture(gl, texture->target, texture->id);
+
+        ngli_BindTexture(gl, GL_TEXTURE_EXTERNAL_OES, texture->id);
+
+        LOG(ERROR, "make external sampler id %d use texture unit %d", info->external_sampler_id, texture_index);
         ngli_glUniform1i(gl, info->external_sampler_id, texture_index);
+
+        ngli_BindTexture(gl, GL_TEXTURE_2D, 0); // XXX should not be needed
+
+        if (info->sampler_id >= 0) {
+            LOG(ERROR, "make sampler id %d use texture unit %d (disabled)", info->sampler_id, s->disabled_texture_unit);
+            ngli_glUniform1i(gl, info->sampler_id, s->disabled_texture_unit);
+        }
 
     } else if (info->sampler_id >= 0) {
 
         int ret = update_default_sampler(gl, s, texture, info, used_texture_units, sampling_mode);
 
+        ngli_BindTexture(gl, GL_TEXTURE_EXTERNAL_OES, 0); // XXX should not be needed
+
         if (info->external_sampler_id >= 0) {
-            ngli_glBindTexture(gl, GL_TEXTURE_EXTERNAL_OES, 0);
+            LOG(ERROR, "make external sampler id %d use texture unit %d (disabled)", info->external_sampler_id, s->disabled_texture_unit);
             ngli_glUniform1i(gl, info->external_sampler_id, s->disabled_texture_unit);
         }
 
@@ -140,7 +158,7 @@ static int update_sampler2D(const struct glcontext *gl,
 
             GLint id = CVOpenGLESTextureGetName(texture->ios_textures[0]);
             ngli_glActiveTexture(gl, GL_TEXTURE0 + texture_index);
-            ngli_glBindTexture(gl, texture->target, id);
+            ngli_BindTexture(gl, texture->target, id);
             ngli_glUniform1i(gl, info->y_sampler_id, texture_index);
         }
 
@@ -151,7 +169,7 @@ static int update_sampler2D(const struct glcontext *gl,
 
             GLint id = CVOpenGLESTextureGetName(texture->ios_textures[1]);
             ngli_glActiveTexture(gl, GL_TEXTURE0 + texture_index);
-            ngli_glBindTexture(gl, texture->target, id);
+            ngli_BindTexture(gl, texture->target, id);
             ngli_glUniform1i(gl, info->uv_sampler_id, texture_index);
         }
     } else if (info->sampler_id >= 0) {
@@ -203,11 +221,14 @@ static int update_images_and_samplers(struct ngl_node *node)
     if (s->textures) {
         uint64_t used_texture_units = s->used_texture_units;
 
+        LOG(ERROR, "%s: used texture units: 0x%"PRIx64, node->name, used_texture_units);
+
         if (s->disabled_texture_unit >= 0) {
+            LOG(ERROR, "DISABLE TEX 2D + OES ON TEXTURE UNIT %d", s->disabled_texture_unit);
             ngli_glActiveTexture(gl, GL_TEXTURE0 + s->disabled_texture_unit);
-            ngli_glBindTexture(gl, GL_TEXTURE_2D, 0);
+            ngli_BindTexture(gl, GL_TEXTURE_2D, 0);
 #if defined(TARGET_ANDROID)
-            ngli_glBindTexture(gl, GL_TEXTURE_EXTERNAL_OES, 0);
+            ngli_BindTexture(gl, GL_TEXTURE_EXTERNAL_OES, 0);
 #endif
         }
 
@@ -217,6 +238,15 @@ static int update_images_and_samplers(struct ngl_node *node)
             const struct ngl_node *tnode = pair->node;
             struct texture *texture = tnode->priv_data;
 
+            LOG(ERROR, "texture[%d/%d] %s.%s (sampler_type:0x%x sampler_id:%d)",
+                i + 1, s->nb_texture_pairs,
+                node->name, pair->name, info->sampler_type, info->sampler_id);
+            LOG(ERROR, "TEX:(%d,0x%x) LOCAL:(%d,0x%x) EXTERNAL:(%d,0x%x) DR:%d",
+                texture->id, texture->target,
+                texture->local_id, texture->local_target,
+                texture->external_id, texture->external_target,
+                texture->direct_rendering);
+
             if (info->sampler_type == GL_IMAGE_2D) {
                 LOG(VERBOSE,
                     "image at location=%d will use texture_unit=%d",
@@ -224,6 +254,9 @@ static int update_images_and_samplers(struct ngl_node *node)
                     info->sampler_value);
 
                 if (info->sampler_id >= 0) {
+                    LOG(ERROR, "bind image texture id %d on tex unit %d",
+                        texture->id, info->sampler_value);
+
                     ngli_glBindImageTexture(gl,
                                             info->sampler_value,
                                             texture->id,
@@ -542,7 +575,7 @@ int ngli_pipeline_init(struct ngl_node *node)
             s->texture_pairs[s->nb_texture_pairs++] = pair;
         }
 
-        if (need_disabled_texture_unit) {
+        if (need_disabled_texture_unit || 1) {
             s->disabled_texture_unit = acquire_next_available_texture_unit(&s->used_texture_units);
             if (s->disabled_texture_unit < 0)
                 return -1;
@@ -647,8 +680,11 @@ int ngli_pipeline_update(struct ngl_node *node, double t)
 
 int ngli_pipeline_upload_data(struct ngl_node *node)
 {
-    update_uniforms(node);
-    update_images_and_samplers(node);
-    update_buffers(node);
+    int ret;
+
+    if ((ret = update_uniforms(node)) < 0 ||
+        (ret = update_images_and_samplers(node)) < 0 ||
+        (ret = update_buffers(node)) < 0)
+        return ret;
     return 0;
 }

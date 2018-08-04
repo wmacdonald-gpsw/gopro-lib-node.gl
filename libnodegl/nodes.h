@@ -264,11 +264,8 @@ int ngli_format_get_gl_format_type(struct glcontext *gl, int data_format,
                                    GLint *format, GLint *internal_format, GLenum *type);
 
 struct texture {
+    /* user options */
     int data_format;
-    GLenum target;
-    GLint format;
-    GLint internal_format;
-    GLenum type;
     int width;
     int height;
     int depth;
@@ -282,15 +279,31 @@ struct texture {
     int direct_rendering;
     int immutable;
 
+    /* "publicly" exposed id/target. */
+    GLuint id;
+    GLenum target;
+
+    /* id/target to set when the GL texture is handled outside of the texture
+     * node (such as an OES texture, but can be a standard Texture2D). Setting
+     * these fields will disable all local texture management. */
     GLuint external_id;
     GLenum external_target;
 
-    NGLI_ALIGNED_MAT(coordinates_matrix);
-    GLuint id;
+    /* id/target of the default texture allocated. The target can only be
+     * GL_TEXTURE_2D or GL_TEXTURE_3D. */
     GLuint local_id;
     GLenum local_target;
 
+    NGLI_ALIGNED_MAT(coordinates_matrix);
+
+    /* deduced from data_format */
+    GLint format;
+    GLint internal_format;
+    GLenum type;
+
     enum hwupload_fmt upload_fmt;
+
+    /* internal nodes used for hw-accelerated proxy */
     struct ngl_node *quad;
     struct ngl_node *program;
     struct ngl_node *render;
