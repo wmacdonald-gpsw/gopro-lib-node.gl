@@ -305,6 +305,10 @@ struct texture {
     double data_src_ts;
 };
 
+/*
+ * >= 0 on success (1 if generated texture)
+ * < 0 on error
+ */
 int ngli_texture_update_local_texture(struct ngl_node *node,
                                       int width, int height, int depth,
                                       const uint8_t *data);
