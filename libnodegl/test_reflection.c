@@ -22,55 +22,83 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #include "spirv.h"
+#include "hmap.h"
+
+static char *read_file(const char *filepath, uint32_t *size)
+{
+    char *buf = NULL;
+    struct stat st;
+
+    int fd = open(filepath, O_RDONLY);
+    if (fd == -1)
+        goto end;
+
+    if (fstat(fd, &st) == -1)
+        goto end;
+
+    buf = malloc(st.st_size + 1);
+    if (!buf)
+        goto end;
+
+    int n = read(fd, buf, st.st_size);
+    buf[n] = 0;
+    *size = st.st_size;
+
+end:
+    if (fd != -1)
+        close(fd);
+    return buf;
+}
 
 int main(int argc, char *argv[])
 {
     const char *filepath = argv[1];
-    FILE *file = fopen(filepath, "rb");
-    if (!file)
+
+    uint32_t shader_size;
+    char *shader_code = read_file(filepath, &shader_size);
+    if (!shader_code)
         return -1;
 
-    fseek(file, 0 ,SEEK_END);
-    uint32_t shader_size = ftell(file);
-    fseek(file, 0 ,SEEK_SET);
-
-    char *shader_code = malloc(shader_size);
-    if (fread(shader_code, 1, shader_size, file) != shader_size)
+    struct shader_reflection *s = ngli_spirv_create_reflection((uint32_t*)shader_code, shader_size);
+    if (!s)
         return -1;
-    fclose(file);
-
-    struct shader_reflection *s = NULL;
-    if (ngli_spirv_create_reflection((uint32_t*)shader_code, shader_size, &s) != 0)
-        return -1;
+    free(shader_code);
 
     // output reflection
     printf("%s\n", filepath);
 
-    printf("\t%d variables\n", s->nb_variables);
-    for (uint32_t i=0; i<s->nb_variables; i++) {
-        struct shader_variable_reflection *variable = &s->variables[i];
-        printf("\t\t%s %u\n", (variable->flag & NGL_SHADER_VARIABLE_INPUT) != 0 ? "input" : "output", variable->offset);
-        printf("\t\tname: %s\n", variable->name);
-    }
-
-    printf("\t%d buffers\n", s->nb_buffers);
-    for (uint32_t i=0; i<s->nb_buffers; i++) {
-        struct shader_buffer_reflection *buffer = &s->buffers[i];
-
-        printf("\t\ttype: %s\n", (buffer->flag & NGL_SHADER_BUFFER_UNIFORM) != 0 ? "uniform" : "constant");
-        printf("\t\tsize: %d\n", s->buffers[i].size);
-        for (uint32_t j=0; j<buffer->nb_variables; j++) {
-            struct shader_variable_reflection *variable = &buffer->variables[j];
-            printf("\t\t\toffset: %d\n", variable->offset);
-            printf("\t\t\tname: %s\n", variable->name);
+    if (s->variables) {
+        printf("\t%d variables\n", ngli_hmap_count(s->variables));
+        const struct hmap_entry *variable_entry = NULL;
+        while ((variable_entry = ngli_hmap_next(s->variables, variable_entry))) {
+            const struct shader_variable_reflection *variable = variable_entry->data;
+            printf("\t\t%s %u\n", (variable->flag & NGL_SHADER_VARIABLE_INPUT) != 0 ? "input" : "output", variable->offset);
+            printf("\t\tname: %s\n", variable_entry->key);
         }
     }
-    ngli_spirv_destroy_reflection(s);
 
-    //TODO: replace variable name with hash - need to delete shader code after since we kept pointer on variable names
-    free(shader_code);
+    if (s->buffers) {
+        printf("\t%d buffers\n", ngli_hmap_count(s->buffers));
+        const struct hmap_entry *buffer_entry = NULL;
+        while ((buffer_entry = ngli_hmap_next(s->buffers, buffer_entry))) {
+            struct shader_buffer_reflection *buffer = buffer_entry->data;
+            printf("\t\ttype: %s\n", (buffer->flag & NGL_SHADER_BUFFER_UNIFORM) != 0 ? "uniform" : "constant");
+            printf("\t\tsize: %d\n", buffer->size);
+            if (buffer->variables) {
+                const struct hmap_entry *variable_entry = NULL;
+                while ((variable_entry = ngli_hmap_next(buffer->variables, variable_entry))) {
+                    struct shader_variable_reflection *variable = variable_entry->data;
+                    printf("\t\t\toffset: %d\n", variable->offset);
+                    printf("\t\t\tname: %s\n", variable_entry->key);
+                }
+            }
+        }
+    }
+    ngli_spirv_destroy_reflection(&s);
 
     return 0;
 }

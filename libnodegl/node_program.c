@@ -250,15 +250,13 @@ static int program_init(struct ngl_node *node)
         return -1;
 
     // reflect shaders
-    s->vert_reflection = NULL;
-    ret = ngli_spirv_create_reflection((uint32_t*)s->vert_data, s->vert_data_size, &s->vert_reflection);
-    if (ret < 0)
-        return ret;
+    s->vert_reflection = ngli_spirv_create_reflection((uint32_t*)s->vert_data, s->vert_data_size);
+    if (!s->vert_reflection)
+        return -1;
 
-    s->frag_reflection = NULL;
-    ret = ngli_spirv_create_reflection((uint32_t*)s->frag_data, s->frag_data_size, &s->frag_reflection);
-    if (ret < 0)
-        return ret;
+    s->frag_reflection = ngli_spirv_create_reflection((uint32_t*)s->frag_data, s->frag_data_size);
+    if (!s->frag_reflection)
+        return -1;
 
     VkPipelineShaderStageCreateInfo shader_stage_create_info[2] = {
         {
@@ -302,11 +300,8 @@ static void program_uninit(struct ngl_node *node)
 #ifdef VULKAN_BACKEND
     struct glcontext *vk = ctx->glcontext;
 
-    if (s->vert_reflection)
-        ngli_spirv_destroy_reflection(s->vert_reflection);
-
-    if (s->frag_reflection)
-        ngli_spirv_destroy_reflection(s->frag_reflection);
+    ngli_spirv_destroy_reflection(&s->vert_reflection);
+    ngli_spirv_destroy_reflection(&s->frag_reflection);
 
     vkDestroyShaderModule(vk->device, s->frag_shader, NULL);
     vkDestroyShaderModule(vk->device, s->vert_shader, NULL);

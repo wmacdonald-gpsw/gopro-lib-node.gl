@@ -33,32 +33,24 @@ enum {
 
 struct shader_variable_reflection
 {
-    const char* name; //TODO: should be hash
-    uint32_t hash;
     uint16_t offset;
     uint8_t flag;
 };
 
 struct shader_buffer_reflection
 {
-    struct shader_variable_reflection *variables;
-    uint8_t nb_variables;
+    struct hmap *variables;
     uint16_t size;
     uint8_t flag;
 };
 
 struct shader_reflection
 {
-    struct shader_variable_reflection *variables;
-    struct shader_buffer_reflection *buffers;
-    uint8_t nb_variables;
-    uint8_t nb_buffers;
+    struct hmap *variables;
+    struct hmap *buffers;
 };
 
-int ngli_spirv_create_reflection(const uint32_t *code, size_t size, struct shader_reflection **s);
-void ngli_spirv_destroy_reflection(struct shader_reflection *s);
-
-const struct shader_buffer_reflection* ngli_spirv_get_next_buffer(const struct shader_reflection *reflection, uint32_t flag /*= 0*/, const struct shader_buffer_reflection *buffer /*= NULL*/);
-const struct shader_variable_reflection* ngli_spirv_find_variable(const struct shader_reflection *reflection, const char *name);
+struct shader_reflection *ngli_spirv_create_reflection(const uint32_t *code, size_t size);
+void ngli_spirv_destroy_reflection(struct shader_reflection **reflection);
 
 #endif

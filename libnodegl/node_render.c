@@ -310,9 +310,7 @@ static int update_uniforms(struct ngl_node *node)
         vkMapMemory(vk->device, s->uniform_device_memory[vk->img_index], 0, s->uniform_device_memory_size, 0, &mapped_memory);
         for (int i = 0; i < s->nb_uniform_ids; i++) {
             struct uniformprograminfo *info = &s->uniform_ids[i];
-
-            // TODO: we should retrieve ngl_node from hash
-            const struct ngl_node *unode = ngli_hmap_get(s->uniforms, info->name);
+            const struct ngl_node *unode = info->node;
             switch (unode->class->id) {
                 case NGL_NODE_UNIFORMFLOAT: {
                     // TODO: uniformfloat should use float instead of double via "scalar parameter"
@@ -488,7 +486,7 @@ static int update_vertex_attribs(struct ngl_node *node)
     if (geometry->vertices_buffer) {
         struct buffer *buffer = geometry->vertices_buffer->priv_data;
 #ifdef VULKAN_BACKEND
-        const struct shader_variable_reflection *variable = ngli_spirv_find_variable(program->vert_reflection, "ngl_position");
+        const struct shader_variable_reflection *variable = ngli_hmap_get(program->vert_reflection->variables, "ngl_position");
         if (variable) {
             register_bind(node, buffer, variable->offset);
         }
@@ -502,7 +500,7 @@ static int update_vertex_attribs(struct ngl_node *node)
     if (geometry->uvcoords_buffer) {
         struct buffer *buffer = geometry->uvcoords_buffer->priv_data;
 #ifdef VULKAN_BACKEND
-        const struct shader_variable_reflection *variable = ngli_spirv_find_variable(program->vert_reflection, "ngl_uvcoord");
+        const struct shader_variable_reflection *variable = ngli_hmap_get(program->vert_reflection->variables, "ngl_uvcoord");
         if (variable) {
             register_bind(node, buffer, variable->offset);
         }
@@ -516,7 +514,7 @@ static int update_vertex_attribs(struct ngl_node *node)
     if (geometry->normals_buffer) {
         struct buffer *buffer = geometry->normals_buffer->priv_data;
 #ifdef VULKAN_BACKEND
-        const struct shader_variable_reflection *variable = ngli_spirv_find_variable(program->vert_reflection, "ngl_normal");
+        const struct shader_variable_reflection *variable = ngli_hmap_get(program->vert_reflection->variables, "ngl_normal");
         if (variable) {
             register_bind(node, buffer, variable->offset);
         }
@@ -896,35 +894,39 @@ static void destroy_descriptor_pool_and_sets(struct ngl_node *node)
 
 static int init_uniforms(struct ngl_node *node, const struct shader_reflection *reflection)
 {
+    if (!reflection->buffers)
+        return 0;
+
     struct render *s = node->priv_data;
 
-    const struct shader_buffer_reflection *buffer = ngli_spirv_get_next_buffer(reflection, NGL_SHADER_BUFFER_UNIFORM, NULL);
-    while(buffer) {
-        // update variables only if user has set some uniforms
-        if (s->uniforms) {
-            for (uint32_t i=0; i<buffer->nb_variables; i++) {
-                const struct shader_variable_reflection *variable = &buffer->variables[i];
+    const struct hmap_entry *buffer_entry = NULL;
+    while(buffer_entry = ngli_hmap_next(reflection->buffers, buffer_entry)) {
+        struct shader_buffer_reflection *buffer = buffer_entry->data;
+        if ((buffer->flag & NGL_SHADER_BUFFER_UNIFORM) != 0) {
+            // init variables only if user has set some uniforms
+            if (s->uniforms && buffer->variables) {
+                const struct hmap_entry *variable_entry = NULL;
+                while (variable_entry = ngli_hmap_next(buffer->variables, variable_entry)) {
+                    struct ngl_node *unode = ngli_hmap_get(s->uniforms, variable_entry->key);
+                    if (!unode)
+                        continue;
 
-                struct ngl_node *unode = ngli_hmap_get(s->uniforms, variable->name);
-                if (!unode)
-                    continue;
+                    int ret = ngli_node_init(unode);
+                    if (ret < 0)
+                        return ret;
 
-                int ret = ngli_node_init(unode);
-                if (ret < 0)
-                    return ret;
-
-                struct uniformprograminfo *infop = &s->uniform_ids[s->nb_uniform_ids++];
-                infop->offset = s->uniform_device_memory_size + variable->offset;
-                strcpy(infop->name, variable->name);// TODO: this should be hash
+                    const struct shader_variable_reflection *variable = variable_entry->data;
+                    struct uniformprograminfo *infop = &s->uniform_ids[s->nb_uniform_ids++];
+                    infop->node = unode;
+                    infop->offset = s->uniform_device_memory_size + variable->offset;
+                }
             }
+            // TODO: get more information on alignement and memory requirement
+            uint32_t uniform_buffer_alignement = buffer->size % 32;
+            uint32_t uniform_buffer_size = uniform_buffer_alignement =! 0 ? buffer->size + 32 - uniform_buffer_alignement : buffer->size;
+            s->uniform_buffer_sizes[s->nb_uniform_buffers++] = uniform_buffer_size;
+            s->uniform_device_memory_size += uniform_buffer_size;
         }
-        // TODO: get more information on alignement and memory requirement
-        uint32_t uniform_buffer_alignement = buffer->size % 32;
-        uint32_t uniform_buffer_size = uniform_buffer_alignement =! 0 ? buffer->size + 32 - uniform_buffer_alignement : buffer->size;
-        s->uniform_buffer_sizes[s->nb_uniform_buffers++] = uniform_buffer_size;
-        s->uniform_device_memory_size += uniform_buffer_size;
-
-        buffer = ngli_spirv_get_next_buffer(reflection, NGL_SHADER_BUFFER_UNIFORM, buffer);
     }
 
     return 0;
@@ -971,29 +973,22 @@ static int render_init(struct ngl_node *node)
         s->uniform_ids = calloc(nb_uniforms, sizeof(*s->uniform_ids));
 
     // TODO: approximative uniform buffer count
-    uint32_t nb_buffers = 0;
-    if (program->vert_reflection)
-        nb_buffers += program->vert_reflection->nb_buffers;
-    if (program->frag_reflection)
-        nb_buffers += program->frag_reflection->nb_buffers;
-
+    uint32_t nb_buffers_in_vert = program->vert_reflection->buffers ? ngli_hmap_count(program->vert_reflection->buffers) : 0;
+    uint32_t nb_buffers_in_frag = program->frag_reflection->buffers ? ngli_hmap_count(program->frag_reflection->buffers) : 0;
+    uint32_t nb_buffers = nb_buffers_in_vert + nb_buffers_in_frag;
     if (nb_buffers) {
         s->uniform_buffer_sizes = calloc(nb_buffers, sizeof(*s->uniform_buffer_sizes));
         s->nb_uniform_buffers = 0;
 
         // uniform vertex shader init
-        if (program->vert_reflection) {
-            ret = init_uniforms(node, program->vert_reflection);
-            if (ret < 0)
-                return ret;
-        }
+        ret = init_uniforms(node, program->vert_reflection);
+        if (ret < 0)
+            return ret;
 
         // uniform fragment shader init
-        if (program->frag_reflection) {
-            ret = init_uniforms(node, program->frag_reflection);
-            if (ret < 0)
-                return ret;
-        }
+        ret = init_uniforms(node, program->frag_reflection);
+        if (ret < 0)
+            return ret;
 
         if (s->nb_uniform_buffers) {
             // create uniform buffers
@@ -1142,7 +1137,7 @@ static int render_init(struct ngl_node *node)
                 return -1;
             }
 #ifdef VULKAN_BACKEND
-            const struct shader_variable_reflection *variable = ngli_spirv_find_variable(program->vert_reflection, entry->key);
+            const struct shader_variable_reflection *variable = ngli_hmap_get(program->vert_reflection->variables, entry->key);
             if (variable)
                 s->attribute_ids[i] = variable->offset;
 #else

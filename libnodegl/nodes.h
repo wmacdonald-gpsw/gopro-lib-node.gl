@@ -389,13 +389,14 @@ int ngli_texture_update_local_texture(struct ngl_node *node,
 
 struct uniformprograminfo {
 #ifdef VULKAN_BACKEND
+    const struct ngl_node* node;
     uint32_t offset;
 #else
     GLint id;
     GLint size;
     GLenum type;
-#endif
     char name[64];
+#endif
 };
 
 struct textureprograminfo {

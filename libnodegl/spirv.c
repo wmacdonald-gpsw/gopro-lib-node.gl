@@ -20,10 +20,12 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "spirv.h"
 #include "utils.h"
+#include "hmap.h"
 
 struct spirv_header
 {
@@ -34,16 +36,23 @@ struct spirv_header
     uint32_t reserved;
 };
 
+struct shader_variable_internal
+{
+    const char *name;
+    uint16_t offset;
+};
+
 struct shader_type_internal
 {
     const char *name;
-    struct shader_variable_reflection variables[8];
+    struct shader_variable_internal variables[8];
     uint16_t size;
     uint8_t nb_variables;
     uint8_t index;
     uint8_t flag;
 };
 
+// TODO: remove stack limitation?
 struct shader_internal
 {
     struct shader_type_internal types[64];
@@ -55,22 +64,21 @@ struct shader_internal
     uint8_t nb_buffers;
 };
 
-int ngli_spirv_create_reflection(const uint32_t *code, size_t size, struct shader_reflection **s)
+struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, size_t size)
 {
     // header
     if (size < sizeof(struct spirv_header))
-        return -1;
+        return NULL;
 
     struct spirv_header *header = (struct spirv_header*)code;
     if (header->magic != 0x07230203)
-        return -1;
+        return NULL;
     if (header->version != 0x00010000) // XXX: allow more?
-        return -1;
+        return NULL;
 
     code += sizeof(struct spirv_header) / sizeof(uint32_t);
     size -= sizeof(struct spirv_header);
 
-    *s = malloc(sizeof(struct shader_reflection));
     // data
     struct shader_internal internal = {0};
     while (size > 0) {
@@ -81,7 +89,7 @@ int ngli_spirv_create_reflection(const uint32_t *code, size_t size, struct shade
         // check instruction size
         const uint32_t instruction_size = word_count * sizeof(uint32_t);
         if (size < instruction_size)
-            return -1;
+            return NULL;
 
         switch(opcode) {
             // OpName
@@ -103,9 +111,8 @@ int ngli_spirv_create_reflection(const uint32_t *code, size_t size, struct shade
                 struct shader_type_internal *type = &internal.types[type_id];
                 type->nb_variables++;
 
-                struct shader_variable_reflection *variable = &type->variables[variable_index];
+                struct shader_variable_internal *variable = &type->variables[variable_index];
                 variable->name = name;
-                //variable->hash = ngli_crc32(name);
                 break;
             }
 
@@ -220,10 +227,9 @@ int ngli_spirv_create_reflection(const uint32_t *code, size_t size, struct shade
                 const uint32_t decoration = code[3];
 
                 // Offset
-                if(decoration == 35)
-                {
+                if(decoration == 35) {
                     const uint32_t offset = code[4];
-                    struct shader_variable_reflection *variable = &internal.types[type_id].variables[variable_index];
+                    struct shader_variable_internal *variable = &internal.types[type_id].variables[variable_index];
                     variable->offset = offset;
                 }
                 break;
@@ -233,71 +239,76 @@ int ngli_spirv_create_reflection(const uint32_t *code, size_t size, struct shade
         size -= instruction_size;
     }
 
-    struct shader_reflection *reflection = *s;
+    // allocate shader_reflection memory
+    uint32_t variable_bytes = internal.nb_variables * sizeof(struct shader_variable_reflection);
+    uint32_t buffer_bytes = internal.nb_buffers * sizeof(struct shader_buffer_reflection);
+    for (uint32_t i = 0; i < internal.nb_buffers; i++) {
+        const uint8_t buffer_type_id = internal.buffer_type_indices[i];
+        struct shader_type_internal *type = &internal.types[buffer_type_id];
+        buffer_bytes += type->nb_variables * sizeof(struct shader_variable_reflection);
+    }
+    uint32_t reflection_bytes = sizeof(struct shader_reflection) + variable_bytes + buffer_bytes;
+    uint8_t *allocation = malloc(reflection_bytes);
 
-    // allocate variables
-    reflection->nb_variables = internal.nb_variables;
-    reflection->variables = calloc(reflection->nb_variables, sizeof(*reflection->variables));
-    for (uint32_t i=0; i<reflection->nb_variables; i++) {
+    // initialize shader_reflection
+    struct shader_reflection *reflection = (struct shader_reflection*)allocation;
+    reflection->variables = internal.nb_variables ? ngli_hmap_create() : NULL;
+    reflection->buffers = internal.nb_buffers ? ngli_hmap_create() : NULL;
+
+    // initialize variables
+    struct shader_variable_reflection *variable = (struct shader_variable_reflection*)(allocation + sizeof(struct shader_reflection));
+    for (uint32_t i = 0; i < internal.nb_variables; i++) {
         const uint8_t variable_type_id = internal.variable_type_indices[i];
         struct shader_type_internal *type = &internal.types[variable_type_id];
 
-        struct shader_variable_reflection *variable = &reflection->variables[i];
-        variable->name = type->name;
         variable->offset = type->index;
         variable->flag = type->flag;
+        ngli_hmap_set(reflection->variables, type->name, variable++);
     }
 
-    // allocate buffers
-    reflection->nb_buffers = internal.nb_buffers;
-    reflection->buffers = calloc(reflection->nb_buffers, sizeof(*reflection->buffers));
-    for (uint32_t i=0; i<reflection->nb_buffers; i++) {
+    // initialize buffer
+    struct shader_buffer_reflection *buffer = (struct shader_buffer_reflection*)variable;
+    for (uint32_t i = 0; i < internal.nb_buffers; i++) {
         const uint8_t buffer_type_id = internal.buffer_type_indices[i];
-        struct shader_type_internal *type = &internal.types[buffer_type_id];
+        struct shader_type_internal *type_internal = &internal.types[buffer_type_id];
 
-        struct shader_buffer_reflection *buffer = &reflection->buffers[i];
-        buffer->flag = type->flag;
-        buffer->size = type->size;
-        buffer->nb_variables = type->nb_variables;
-        buffer->variables = calloc(buffer->nb_variables, sizeof(*buffer->variables));
-        memcpy(buffer->variables, type->variables, buffer->nb_variables * sizeof(*buffer->variables));
+        buffer->flag = type_internal->flag;
+        buffer->size = type_internal->size;
+        buffer->variables = NULL;
+        if (type_internal->nb_variables)
+        {
+            buffer->variables = ngli_hmap_create();
+            variable = (struct shader_variable_reflection*)(((uint8_t*)buffer) + sizeof(struct shader_buffer_reflection));
+            for (uint32_t j = 0; j < type_internal->nb_variables; j++) {
+                struct shader_variable_internal *variable_internal = &type_internal->variables[j];
+                variable->offset = variable_internal->offset;
+                variable->flag = 0;
+                ngli_hmap_set(buffer->variables, variable_internal->name, variable++);
+            }
+        }
+        ngli_hmap_set(reflection->buffers, type_internal->name, buffer);
+        buffer = (struct shader_buffer_reflection*)variable;
     }
 
-    return 0;
+    return reflection;
 }
 
-void ngli_spirv_destroy_reflection(struct shader_reflection *s)
+void ngli_spirv_destroy_reflection(struct shader_reflection **reflection)
 {
+    struct shader_reflection *s = *reflection;
+
+    if (!s)
+        return;
+
+    ngli_hmap_freep(&s->variables);
+
     if (s->buffers) {
-        for (uint8_t i=0; i<s->nb_buffers; i++) {
-            struct shader_buffer_reflection *buffer = &s->buffers[i];
-            if (buffer->variables)
-                free(buffer->variables);
+        const struct hmap_entry *entry = NULL;
+        while ((entry = ngli_hmap_next(s->buffers, entry))) {
+            struct shader_buffer_reflection *buffer = entry->data;
+            ngli_hmap_freep(&buffer->variables);
         }
-        free(s->buffers);
     }
     free(s);
-}
-
-const struct shader_buffer_reflection* ngli_spirv_get_next_buffer(const struct shader_reflection *reflection, uint32_t flag /*= 0*/, const struct shader_buffer_reflection *buffer /*= NULL*/)
-{
-    uint32_t index = buffer ? buffer - reflection->buffers + 1 : 0;
-    while (index < reflection->nb_buffers) {
-        buffer = &reflection->buffers[index++];
-        if ((buffer->flag & flag) != 0)
-            return buffer;
-    }
-
-    return NULL;
-}
-
-const struct shader_variable_reflection* ngli_spirv_find_variable(const struct shader_reflection *reflection, const char *name)
-{
-    for (uint32_t i=0; i<reflection->nb_variables; i++) {
-        struct shader_variable_reflection *variable = &reflection->variables[i];
-        if (strcmp(variable->name, name) == 0) {
-            return variable;
-        }
-    }
-    return NULL;
+    s = NULL;
 }
