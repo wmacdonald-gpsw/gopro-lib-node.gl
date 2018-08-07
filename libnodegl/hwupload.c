@@ -299,6 +299,13 @@ static int init_mc(struct ngl_node *node, struct hwupload_config *config)
     return 0;
 }
 
+static const NGLI_ALIGNED_MAT(flip_matrix) = {
+    1.0f,  0.0f, 0.0f, 0.0f,
+    0.0f, -1.0f, 0.0f, 0.0f,
+    0.0f,  0.0f, 1.0f, 0.0f,
+    0.0f,  1.0f, 0.0f, 1.0f,
+};
+
 static int upload_mc_frame(struct ngl_node *node, struct hwupload_config *config, struct sxplayer_frame *frame)
 {
     int ret;
@@ -313,13 +320,6 @@ static int upload_mc_frame(struct ngl_node *node, struct hwupload_config *config
         0.0f, 1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
-    };
-
-    NGLI_ALIGNED_MAT(flip_matrix) = {
-        1.0f,  0.0f, 0.0f, 0.0f,
-        0.0f, -1.0f, 0.0f, 0.0f,
-        0.0f,  0.0f, 1.0f, 0.0f,
-        0.0f,  1.0f, 0.0f, 1.0f,
     };
 
     ret = update_texture_dimensions(node, config);
@@ -403,13 +403,6 @@ static int upload_mc_frame_dr(struct ngl_node *node, struct hwupload_config *con
         0.0f, 1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f,
-    };
-
-    NGLI_ALIGNED_MAT(flip_matrix) = {
-        1.0f,  0.0f, 0.0f, 0.0f,
-        0.0f, -1.0f, 0.0f, 0.0f,
-        0.0f,  0.0f, 1.0f, 0.0f,
-        0.0f,  1.0f, 0.0f, 1.0f,
     };
 
     s->width  = config->width;
