@@ -96,34 +96,9 @@ static const int platform_to_glplatform[] = {
     [NGL_PLATFORM_WINDOWS] = GLPLATFORM_WGL,
 };
 
-static int glcontext_choose_platform(int platform)
-{
-    if (platform != NGL_PLATFORM_AUTO)
-        return platform;
-
-#if defined(TARGET_LINUX)
-    return NGL_PLATFORM_XLIB;
-#elif defined(TARGET_IPHONE)
-    return NGL_PLATFORM_IOS;
-#elif defined(TARGET_DARWIN)
-    return NGL_PLATFORM_MACOS;
-#elif defined(TARGET_ANDROID)
-    return NGL_PLATFORM_ANDROID;
-#elif defined(TARGET_MINGW_W64)
-    return NGL_PLATFORM_WINDOWS;
-#else
-    LOG(ERROR, "can not determine which GL platform to use");
-    return -1;
-#endif
-}
-
 struct glcontext *ngli_glcontext_new(const struct ngl_config *config)
 {
-    const int platform = glcontext_choose_platform(config->platform);
-    if (platform < 0 || platform >= NGLI_ARRAY_NB(platform_to_glplatform))
-        return NULL;
-
-    const int glplatform = platform_to_glplatform[platform];
+    const int glplatform = platform_to_glplatform[config->platform];
     if (glplatform < 0 || glplatform >= NGLI_ARRAY_NB(glcontext_class_map))
         return NULL;
 
@@ -139,7 +114,7 @@ struct glcontext *ngli_glcontext_new(const struct ngl_config *config)
         }
     }
 
-    glcontext->platform = platform;
+    glcontext->platform = config->platform;
     glcontext->backend = config->backend;
     glcontext->wrapped = config->wrapped;
     glcontext->offscreen = config->offscreen;
@@ -147,14 +122,7 @@ struct glcontext *ngli_glcontext_new(const struct ngl_config *config)
     glcontext->height = config->height;
     glcontext->samples = config->samples;
     glcontext->set_surface_pts = config->set_surface_pts;
-
-    if (glcontext->offscreen && (glcontext->width <= 0 || glcontext->height <= 0)) {
-        LOG(ERROR,
-            "could not initialize offscreen rendering with invalid dimensions (%dx%d)",
-            glcontext->width,
-            glcontext->height);
-        goto fail;
-    }
+    memcpy(glcontext->clear_color, config->clear_color, sizeof(config->clear_color));
 
     if (glcontext->class->init) {
         uintptr_t handle = glcontext->wrapped ? config->handle : 0;
