@@ -59,6 +59,7 @@ struct glcontext {
     int height;
     int samples;
     int set_surface_pts;
+    float clear_color[4]; // FIXME: update it
 
     /* GL api */
     int version;

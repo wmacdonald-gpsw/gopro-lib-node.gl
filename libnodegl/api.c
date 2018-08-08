@@ -47,12 +47,18 @@ struct ngl_ctx *ngl_create(void)
 
 static int cmd_reconfigure(struct ngl_ctx *s, void *arg)
 {
-    return s->backend->reconfigure(s, arg);
+    int ret = s->backend->reconfigure(s, arg);
+    if (ret < 0)
+        LOG(ERROR, "unable to reconfigure %s", s->backend->name);
+    return ret;
 }
 
 static int cmd_configure(struct ngl_ctx *s, void *arg)
 {
-    return s->backend->configure(s, arg);
+    int ret = s->backend->configure(s, arg);
+    if (ret < 0)
+        LOG(ERROR, "unable to configure %s", s->backend->name);
+    return ret;
 }
 
 static int cmd_set_scene(struct ngl_ctx *s, void *arg)
@@ -163,9 +169,9 @@ static void *worker_thread(void *arg)
 }
 
 #if defined(TARGET_IPHONE) || defined(TARGET_ANDROID)
-# define DEFAULT_BACKEND NGL_BACKEND_OPENGLES;
+# define DEFAULT_BACKEND NGL_BACKEND_OPENGLES
 #else
-# define DEFAULT_BACKEND NGL_BACKEND_OPENGL;
+# define DEFAULT_BACKEND NGL_BACKEND_OPENGL
 #endif
 
 extern const struct backend ngli_backend_gl;
@@ -176,14 +182,55 @@ static const struct backend *backend_map[] = {
     [NGL_BACKEND_OPENGLES] = &ngli_backend_gles,
 };
 
+static int get_default_platform(void)
+{
+#if defined(TARGET_LINUX)
+    return NGL_PLATFORM_XLIB;
+#elif defined(TARGET_IPHONE)
+    return NGL_PLATFORM_IOS;
+#elif defined(TARGET_DARWIN)
+    return NGL_PLATFORM_MACOS;
+#elif defined(TARGET_ANDROID)
+    return NGL_PLATFORM_ANDROID;
+#elif defined(TARGET_MINGW_W64)
+    return NGL_PLATFORM_WINDOWS;
+#else
+    return -1;
+#endif
+}
+
 static int configure(struct ngl_ctx *s, struct ngl_config *config)
 {
     if (config->backend == NGL_BACKEND_AUTO)
         config->backend = DEFAULT_BACKEND;
+
+    if (config->backend < 0 ||
+        config->backend >= NGLI_ARRAY_NB(backend_map) ||
+        !backend_map[config->backend]) {
+        ngli_assert(backend_map[DEFAULT_BACKEND]);
+        LOG(INFO, "unknown backend %d, fallback on %s",
+            config->backend, backend_map[DEFAULT_BACKEND]->name);
+        config->backend = DEFAULT_BACKEND;
+    }
+
     s->backend = backend_map[config->backend];
     if (!s->backend)
         return -1;
     LOG(INFO, "selected backend: %s", s->backend->name);
+
+    if (config->platform == NGL_PLATFORM_AUTO)
+        config->platform = get_default_platform();
+    if (config->platform < 0) {
+        LOG(ERROR, "can not determine which platform to use");
+        return -1;
+    }
+
+    if (config->offscreen && (config->width <= 0 || config->height <= 0)) {
+        LOG(ERROR,
+            "could not initialize offscreen rendering with invalid dimensions (%dx%d)",
+            config->width, config->height);
+        return -1;
+    }
 
     int ret = s->backend->int_cfg_dp ? cmd_configure(s, config)
                                      : ngli_dispatch_cmd(s, cmd_configure, config);
