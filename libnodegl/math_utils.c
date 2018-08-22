@@ -255,6 +255,27 @@ void ngli_mat4_mul_c(float *dst, const float *m1, const float *m2)
     memcpy(dst, m, sizeof(m));
 }
 
+void ngli_mat4_mul_vec2(float *dst, const float *m, const float *v)
+{
+    float tmp[2];
+
+    tmp[0] = m[0]*v[0] + m[4]*v[1];
+    tmp[1] = m[1]*v[0] + m[5]*v[1];
+
+    memcpy(dst, tmp, sizeof(tmp));
+}
+
+void ngli_mat4_mul_vec3(float *dst, const float *m, const float *v)
+{
+    float tmp[3];
+
+    tmp[0] = m[0]*v[0] + m[4]*v[1] + m[ 8]*v[2];
+    tmp[1] = m[1]*v[0] + m[5]*v[1] + m[ 9]*v[2];
+    tmp[2] = m[2]*v[0] + m[6]*v[1] + m[10]*v[2];
+
+    memcpy(dst, tmp, sizeof(tmp));
+}
+
 void ngli_mat4_mul_vec4_c(float *dst, const float *m, const float *v)
 {
     float tmp[4];
