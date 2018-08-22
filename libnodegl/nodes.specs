@@ -91,6 +91,7 @@
         - [filename, string]
         - [stride, int]
         - [usage, select]
+        - [transforms, NodeList]
 
 - BufferBVec2: _Buffer
 

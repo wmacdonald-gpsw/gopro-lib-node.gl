@@ -22,12 +22,15 @@
 #include <fcntl.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "log.h"
+#include "math_utils.h"
 #include "nodegl.h"
 #include "nodes.h"
+#include "transforms.h"
 
 static const struct param_choices usage_choices = {
     .name = "buffer_usage",
@@ -67,6 +70,8 @@ static const struct node_param buffer_params[] = {
     {"usage",  PARAM_TYPE_SELECT, OFFSET(usage),  {.i64=GL_STATIC_DRAW},
                .desc=NGLI_DOCSTRING("buffer usage hint"),
                .choices=&usage_choices},
+    {"transforms", PARAM_TYPE_NODELIST, OFFSET(transforms), .node_types=TRANSFORM_TYPES_LIST,
+               .desc=NGLI_DOCSTRING("per element transformation chain (only supported by `BufferVec2`, `BufferVec3`, `BufferVec4`, `BufferMat4`)")},
     {NULL}
 };
 
@@ -159,6 +164,16 @@ static int buffer_init(struct ngl_node *node)
         return -1;
     }
 
+    if (s->transforms &&
+        !(node->class->id == NGL_NODE_BUFFERVEC2 ||
+          node->class->id == NGL_NODE_BUFFERVEC3 ||
+          node->class->id == NGL_NODE_BUFFERVEC4 ||
+          node->class->id == NGL_NODE_BUFFERMAT4)) {
+        LOG(ERROR,
+            "buffer transforms are only supported for vec2, vec3, vec4 and mat4 buffers");
+        return -1;
+    }
+
     int ret;
     int data_comp_size;
     int nb_comp;
@@ -213,6 +228,12 @@ static int buffer_init(struct ngl_node *node)
     if (ret < 0)
         return ret;
 
+    s->user_data = malloc(s->data_size);
+    if (!s->user_data) {
+        return -1;
+    }
+    memcpy(s->user_data, s->data, s->data_size);
+
     if (s->generate_gl_buffer) {
         ngli_glGenBuffers(gl, 1, &s->buffer_id);
         ngli_glBindBuffer(gl, GL_ARRAY_BUFFER, s->buffer_id);
@@ -222,6 +243,40 @@ static int buffer_init(struct ngl_node *node)
 
     return 0;
 }
+
+#define DEFINE_BUFFER_UPDATE(suffix, mul_suffix)                             \
+static int buffer_update_##suffix(struct ngl_node *node, double t)           \
+{                                                                            \
+    struct ngl_ctx *ctx = node->ctx;                                         \
+    struct glcontext *gl = ctx->glcontext;                                   \
+                                                                             \
+    struct buffer *s = node->priv_data;                                      \
+                                                                             \
+    if (!s->nb_transforms)                                                   \
+        return 0;                                                            \
+                                                                             \
+    for (int i = 0; i < s->nb_transforms; i++) {                             \
+        struct ngl_node *tnode = s->transforms[i];                           \
+        int ret = ngli_node_update(tnode, t);                                \
+        if (ret < 0)                                                         \
+            return ret;                                                      \
+        const float *matrix = ngli_get_last_transformation_matrix(tnode);    \
+        float *src = (float *)(s->user_data + (i * s->data_stride));         \
+        float *dst = (float *)(s->data + (i * s->data_stride));              \
+        ngli_mat4_mul##mul_suffix(dst, matrix, src);                         \
+    }                                                                        \
+                                                                             \
+    ngli_glBindBuffer(gl, GL_ARRAY_BUFFER, s->buffer_id);                    \
+    ngli_glBufferSubData(gl, GL_ARRAY_BUFFER, 0, s->data_size, s->data);     \
+    ngli_glBindBuffer(gl, GL_ARRAY_BUFFER, 0);                               \
+                                                                             \
+    return 0;                                                                \
+}                                                                            \
+
+DEFINE_BUFFER_UPDATE(vec2, _vec2)
+DEFINE_BUFFER_UPDATE(vec3, _vec3)
+DEFINE_BUFFER_UPDATE(vec4, _vec4)
+DEFINE_BUFFER_UPDATE(mat4,)
 
 static void buffer_uninit(struct ngl_node *node)
 {
@@ -252,6 +307,19 @@ const struct node_class ngli_buffer##type##_class = {       \
     .file      = __FILE__,                                  \
 };
 
+#define DEFINE_BUFFER_WITH_TRANSFORMS_CLASS(class_id, class_name, type) \
+const struct node_class ngli_buffer##type##_class = {                   \
+    .id        = class_id,                                              \
+    .name      = class_name,                                            \
+    .init      = buffer_init,                                           \
+    .update    = buffer_update_##type,                                  \
+    .uninit    = buffer_uninit,                                         \
+    .priv_size = sizeof(struct buffer),                                 \
+    .params    = buffer_params,                                         \
+    .params_id = "Buffer",                                              \
+    .file      = __FILE__,                                              \
+};
+
 DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERBYTE,    "BufferByte",    byte)
 DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERBVEC2,   "BufferBVec2",   bvec2)
 DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERBVEC3,   "BufferBVec3",   bvec3)
@@ -277,7 +345,7 @@ DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERUSVEC2,  "BufferUSVec2",  usvec2)
 DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERUSVEC3,  "BufferUSVec3",  usvec3)
 DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERUSVEC4,  "BufferUSVec4",  usvec4)
 DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERFLOAT,   "BufferFloat",   float)
-DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERVEC2,    "BufferVec2",    vec2)
-DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERVEC3,    "BufferVec3",    vec3)
-DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERVEC4,    "BufferVec4",    vec4)
-DEFINE_BUFFER_CLASS(NGL_NODE_BUFFERMAT4,    "BufferMat4",    mat4)
+DEFINE_BUFFER_WITH_TRANSFORMS_CLASS(NGL_NODE_BUFFERVEC2,    "BufferVec2",    vec2)
+DEFINE_BUFFER_WITH_TRANSFORMS_CLASS(NGL_NODE_BUFFERVEC3,    "BufferVec3",    vec3)
+DEFINE_BUFFER_WITH_TRANSFORMS_CLASS(NGL_NODE_BUFFERVEC4,    "BufferVec4",    vec4)
+DEFINE_BUFFER_WITH_TRANSFORMS_CLASS(NGL_NODE_BUFFERMAT4,    "BufferMat4",    mat4)
