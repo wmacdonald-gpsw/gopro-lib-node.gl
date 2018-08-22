@@ -20,6 +20,7 @@ from pynodegl import (
         BufferVec2,
         BufferVec3,
         BufferVec4,
+        BufferMat4,
         Camera,
         Circle,
         Compute,
@@ -27,6 +28,7 @@ from pynodegl import (
         GraphicConfig,
         Geometry,
         Group,
+        Identity,
         Media,
         Program,
         Quad,
@@ -648,3 +650,69 @@ def mountain(cfg, ndim=3, nb_layers=7,
                           blend_src_factor_a='zero',
                           blend_dst_factor_a='one')
     return blend
+
+
+@scene(size={'type': 'range', 'range': [0, 1.5], 'unit_base': 1000})
+def instanced_triangle(cfg, size=0.5):
+    b = size * math.sqrt(3) / 2.0
+    c = size * 1/2.
+    cfg.duration = 3.
+    cfg.aspect_ratio = (1, 1)
+
+    colors_data = array.array('f', [0.0, 0.0, 1.0, 1.0,
+                                    0.0, 1.0, 0.0, 1.0,
+                                    1.0, 0.0, 0.0, 1.0])
+    colors_buffer = BufferVec4(data=colors_data)
+
+    positions_data = array.array('f', [-0.8, 0.0, 0.0, 0.0,
+                                       -0.6, 0.0, 0.0, 0.0,
+                                       -0.4, 0.0, 0.0, 0.0,
+                                       -0.2, 0.0, 0.0, 0.0,
+                                       0.5,  0.5, 0.0, 0.0])
+    positions_buffer = BufferVec4(data=positions_data)
+
+
+    transformations_data = array.array('f', [
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    ])
+    transformations_buffer = BufferMat4(data=transformations_data)
+
+
+    rotate_animkf = [AnimKeyFrameFloat(0, 0),
+                     AnimKeyFrameFloat(cfg.duration, 360, 'exp_out')]
+    for i in range(5):
+        r = Rotate(Identity(), axis=(0, 0, 1), anim=AnimatedFloat(rotate_animkf))
+        positions_buffer.add_transforms(r)
+
+    triangle = Triangle((-b, -c, 0), (b, -c, 0), (0, size, 0))
+    p = Program(fragment=get_frag('instanced_triangle'), vertex=get_vert('instanced_triangle'))
+    node = Render(triangle, p, nb_instances=5)
+    node.update_attributes(edge_color=colors_buffer)
+    node.update_instance_attributes(
+            instance_position=positions_buffer,
+            instance_transformation=transformations_buffer,
+    )
+    return node
