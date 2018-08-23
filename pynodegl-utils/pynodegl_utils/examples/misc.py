@@ -762,10 +762,16 @@ def instancing(cfg, count=5000):
         vertices=cube_vertices,
         indices=cube_indices,
     )
+
+    shader_version = '300 es' if cfg.backend == 'gles' else '330'
+    shader_header = '#version %s\n' % shader_version
+    vertex_shader = shader_header + get_vert('instanced_cube')
+    fragment_shader = shader_header + get_frag('instanced_cube')
+
     cube = Quad()
     program = Program(
-        vertex=get_vert('instanced_cube'),
-        fragment=get_frag('instanced_cube')
+        vertex=vertex_shader,
+        fragment=fragment_shader
     )
     render = Render(cube, program, nb_instances=count)
     render.update_instance_attributes(
