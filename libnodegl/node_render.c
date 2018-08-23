@@ -56,6 +56,7 @@
                                             NGL_NODE_BUFFERVEC2,    \
                                             NGL_NODE_BUFFERVEC3,    \
                                             NGL_NODE_BUFFERVEC4,    \
+                                            NGL_NODE_BUFFERMAT4,    \
                                             -1}
 
 #define GEOMETRY_TYPES_LIST (const int[]){NGL_NODE_CIRCLE,          \
@@ -151,14 +152,31 @@ static int update_vertex_attribs(struct ngl_node *node)
         const struct nodeprograminfopair *pair = &s->attribute_pairs[i];
         const struct attributeprograminfo *info = pair->program_info;
         const GLint aid = info->id;
-        struct buffer *buffer = pair->node->priv_data;
+        const struct ngl_node *bnode = pair->node;
+        struct buffer *buffer = bnode->priv_data;
 
-        ngli_glEnableVertexAttribArray(gl, aid);
         ngli_glBindBuffer(gl, GL_ARRAY_BUFFER, buffer->buffer_id);
-        ngli_glVertexAttribPointer(gl, aid, buffer->data_comp, GL_FLOAT, GL_FALSE, buffer->data_stride, NULL);
+        /* TODO: check that attribute type is mat4 */
+        if (bnode->class->id == NGL_NODE_BUFFERMAT4) {
+            uintptr_t data_stride = buffer->data_stride / 4;
+            for (int j = 0; j < 4; j++) {
+                ngli_glEnableVertexAttribArray(gl, aid + j);
+                ngli_glVertexAttribPointer(gl, aid + j, 4, GL_FLOAT, GL_FALSE, buffer->data_stride, (void *)(j * data_stride));
+            }
+        } else {
+            ngli_glEnableVertexAttribArray(gl, aid);
+            ngli_glVertexAttribPointer(gl, aid, buffer->data_comp, GL_FLOAT, GL_FALSE, buffer->data_stride, NULL);
+        }
 
-        if (i >= s->first_instance_attribute_index)
-            ngli_glVertexAttribDivisor(gl, aid, 1);
+        if (i >= s->first_instance_attribute_index) {
+            if (bnode->class->id == NGL_NODE_BUFFERMAT4) {
+                for (int j = 0; j < 4; j++) {
+                    ngli_glVertexAttribDivisor(gl, aid + j, 1);
+                }
+            } else {
+                ngli_glVertexAttribDivisor(gl, aid, 1);
+            }
+        }
     }
 
     return 0;
