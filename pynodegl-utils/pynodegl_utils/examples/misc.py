@@ -17,6 +17,7 @@ from pynodegl import (
         BufferUBVec3,
         BufferUBVec4,
         BufferUIVec4,
+        BufferUShort,
         BufferVec2,
         BufferVec3,
         BufferVec4,
@@ -231,6 +232,42 @@ def cropboard(cfg, dim=15):
 
     return Group(children=tqs)
 
+
+@scene(dim={'type': 'range', 'range': [1, 50]})
+def cropboard_with_instancing(cfg, dim=15):
+    m0 = cfg.medias[0]
+    random.seed(0)
+    cfg.duration = 10
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    kw = kh = 1. / dim
+    qw = qh = 2. / dim
+    tqs = []
+
+    p = Program()
+    m = Media(m0.filename)
+    t = Texture2D(data_src=m)
+
+    for y in range(dim):
+        for x in range(dim):
+            corner = (-1. + x*qw, 1. - (y+1.)*qh, 0)
+            q = Quad(corner, (qw, 0, 0), (0, qh, 0))
+
+            q.set_uv_corner(x*kw, 1. - (y+1.)*kh)
+            q.set_uv_width(kw, 0)
+            q.set_uv_height(0, kh)
+
+            render = Render(q, p)
+            render.update_textures(tex0=t)
+
+            startx = random.uniform(-2, 2)
+            starty = random.uniform(-2, 2)
+            trn_animkf = [AnimKeyFrameVec3(0, (startx, starty, 0)),
+                          AnimKeyFrameVec3(cfg.duration*2/3., (0, 0, 0), 'exp_out')]
+            trn = Translate(render, anim=AnimatedVec3(trn_animkf))
+            tqs.append(trn)
+
+    return Group(children=tqs)
 
 @scene(freq_precision={'type': 'range', 'range': [1, 10]},
        overlay={'type': 'range', 'unit_base': 100})
@@ -650,6 +687,100 @@ def mountain(cfg, ndim=3, nb_layers=7,
                           blend_src_factor_a='zero',
                           blend_dst_factor_a='one')
     return blend
+
+@scene(count={'type': 'range', 'range': [1,50000]})
+def instancing(cfg, count=5000):
+    cfg.duration = 5
+    random.seed(0)
+
+    cube_vertices_data = array.array('f', [
+        # front
+        -1.0, -1.0,  1.0,
+        1.0, -1.0,  1.0,
+        1.0,  1.0,  1.0,
+        -1.0,  1.0,  1.0,
+        # back
+        -1.0, -1.0, -1.0,
+        1.0, -1.0, -1.0,
+        1.0,  1.0, -1.0,
+        -1.0,  1.0, -1.0,
+    ])
+
+    cube_indices = array.array('H', [
+        # front
+        0, 1, 2,
+        2, 3, 0,
+        # right
+        1, 5, 6,
+        6, 2, 1,
+        # back
+        7, 6, 5,
+        5, 4, 7,
+        # left
+        4, 0, 3,
+        3, 7, 4,
+        # bottom
+        4, 5, 1,
+        1, 0, 4,
+        # top
+        3, 2, 6,
+        6, 7, 3,
+    ])
+
+    colors_data = array.array('f')
+    transforms_data = array.array('f')
+    for i in range(count):
+        transforms_data.extend([
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0,
+        ])
+        colors_data.extend([
+            random.uniform(0, 1.0),
+            random.uniform(0, 1.0),
+            random.uniform(0, 1.0),
+            1.0,
+        ])
+    colors = BufferVec4(data=colors_data)
+    transforms = BufferMat4(data=transforms_data)
+    for i in range(count):
+        transform = Scale(Identity(), factors=(
+            random.uniform(0.1, 0.3), random.uniform(0.1, 0.3), random.uniform(0.1, 0.3)
+        ))
+        animkf = (AnimKeyFrameFloat(0,            0),
+                  AnimKeyFrameFloat(random.uniform(cfg.duration, cfg.duration*4), 360))
+        transform = Translate(transform, vector=(
+            random.uniform(-10.0, 10.0), random.uniform(-0.1, 0.1), random.uniform(-5.0, 5.0)
+        ))
+        transform = Rotate(transform, axis=(0, 1, 0), anim=AnimatedFloat(animkf))
+        transforms.add_transforms(transform)
+
+    cube_vertices = BufferVec3(data=cube_vertices_data)
+    cube_indices = BufferUShort(data=cube_indices)
+    cube = Geometry(
+        vertices=cube_vertices,
+        indices=cube_indices,
+    )
+    cube = Quad()
+    program = Program(
+        vertex=get_vert('instanced_cube'),
+        fragment=get_frag('instanced_cube')
+    )
+    render = Render(cube, program, nb_instances=count)
+    render.update_instance_attributes(
+            instance_color=colors,
+            instance_transform=transforms,
+    )
+
+    config = GraphicConfig(render, depth_test=True)
+
+    camera = Camera(config)
+    camera.set_eye(0.0, 4.0, 5.0)
+    camera.set_center(0.0, 0.0, 0.0)
+    camera.set_up(0.0, 1.0, 0.0)
+    camera.set_perspective(45.0, cfg.aspect_ratio_float, 1.0, 10.0)
+    return camera
 
 
 @scene(size={'type': 'range', 'range': [0, 1.5], 'unit_base': 1000})
