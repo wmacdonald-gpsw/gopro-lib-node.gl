@@ -102,68 +102,28 @@ static const char default_vertex_shader[] =
 #define OFFSET(x) offsetof(struct program, x)
 static const struct node_param program_params[] = {
 #ifdef VULKAN_BACKEND
-    {"vertex",   PARAM_TYPE_DATA, OFFSET(vert_data),
+    {"vertex",   PARAM_TYPE_DATA, OFFSET(shaders[NGLI_SHADER_TYPE_VERTEX].data),
                  .desc=NGLI_DOCSTRING("vertex SPIR-V shader")},
-    {"fragment", PARAM_TYPE_DATA, OFFSET(frag_data),
+    {"fragment", PARAM_TYPE_DATA, OFFSET(shaders[NGLI_SHADER_TYPE_FRAGMENT].data),
                  .desc=NGLI_DOCSTRING("fragment SPIR-V shader")},
 #else
-    {"vertex",   PARAM_TYPE_STR, OFFSET(vertex),   {.str=default_vertex_shader},
+    {"vertex",   PARAM_TYPE_STR, OFFSET(shaders[NGLI_SHADER_TYPE_VERTEX].content),   {.str=default_vertex_shader},
                  .desc=NGLI_DOCSTRING("vertex shader")},
-    {"fragment", PARAM_TYPE_STR, OFFSET(fragment), {.str=default_fragment_shader},
+    {"fragment", PARAM_TYPE_STR, OFFSET(shaders[NGLI_SHADER_TYPE_FRAGMENT].content), {.str=default_fragment_shader},
                  .desc=NGLI_DOCSTRING("fragment shader")},
 #endif
     {NULL}
 };
 
 #ifdef VULKAN_BACKEND
-static VkResult create_shader_module(VkShaderModule *shader_module, VkDevice device,
-                                     uint8_t *code, int code_size)
-{
-    VkShaderModuleCreateInfo shader_module_create_info = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = code_size,
-        .pCode = (const uint32_t *)code,
-    };
-    return vkCreateShaderModule(device, &shader_module_create_info, NULL, shader_module);
-}
-#else
-static GLuint load_program(struct ngl_node *node, const char *vertex, const char *fragment)
-{
-    struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *gl = ctx->glcontext;
-
-    GLuint program = ngli_glCreateProgram(gl);
-    GLuint vertex_shader = ngli_glCreateShader(gl, GL_VERTEX_SHADER);
-    GLuint fragment_shader = ngli_glCreateShader(gl, GL_FRAGMENT_SHADER);
-
-    ngli_glShaderSource(gl, vertex_shader, 1, &vertex, NULL);
-    ngli_glCompileShader(gl, vertex_shader);
-    if (ngli_program_check_status(gl, vertex_shader, GL_COMPILE_STATUS) < 0)
-        goto fail;
-
-    ngli_glShaderSource(gl, fragment_shader, 1, &fragment, NULL);
-    ngli_glCompileShader(gl, fragment_shader);
-    if (ngli_program_check_status(gl, fragment_shader, GL_COMPILE_STATUS) < 0)
-        goto fail;
-
-    ngli_glAttachShader(gl, program, vertex_shader);
-    ngli_glAttachShader(gl, program, fragment_shader);
-    ngli_glLinkProgram(gl, program);
-    if (ngli_program_check_status(gl, program, GL_LINK_STATUS) < 0)
-        goto fail;
-
-    ngli_glDeleteShader(gl, vertex_shader);
-    ngli_glDeleteShader(gl, fragment_shader);
-
-    return program;
-
-fail:
-    if (vertex_shader)
-        ngli_glDeleteShader(gl, vertex_shader);
-    if (fragment_shader)
-        ngli_glDeleteShader(gl, fragment_shader);
-    if (program)
-        ngli_glDeleteProgram(gl, program);
+static int shader_check_default(struct shader *s, const char* shader_default, uint32_t shader_default_size) {
+    if (!s->data) {
+        s->data_size = shader_default_size;
+        s->data = malloc(s->data_size);
+        if (!s->data)
+            return -1;
+        memcpy(s->data, shader_default, s->data_size);
+    }
 
     return 0;
 }
@@ -171,97 +131,34 @@ fail:
 
 static int program_init(struct ngl_node *node)
 {
-    struct ngl_ctx *ctx = node->ctx;
-
+    int ret;
+#ifdef VULKAN_BACKEND
     struct program *s = node->priv_data;
 
-#ifdef VULKAN_BACKEND
-    struct glcontext *vk = ctx->glcontext;
-    int ret;
-
-    if (!s->vert_data) {
-        s->vert_data_size = ngli_vk_default_vert_size;
-        s->vert_data = malloc(s->vert_data_size);
-        if (!s->vert_data)
-            return -1;
-        memcpy(s->vert_data, ngli_vk_default_vert, s->vert_data_size);
-    }
-
-    if (!s->frag_data) {
-        s->frag_data_size = ngli_vk_default_frag_size;
-        s->frag_data = malloc(s->frag_data_size);
-        if (!s->frag_data)
-            return -1;
-        memcpy(s->frag_data, ngli_vk_default_frag, s->frag_data_size);
-    }
-
-    if ((ret = create_shader_module(&s->vert_shader, vk->device,
-                                    s->vert_data, s->vert_data_size)) != VK_SUCCESS ||
-        (ret = create_shader_module(&s->frag_shader, vk->device,
-                                    s->frag_data, s->frag_data_size)) != VK_SUCCESS)
+    // TODO: should be in default argument of programs_params
+    ret = shader_check_default(&s->shaders[NGLI_SHADER_TYPE_VERTEX], ngli_vk_default_vert, ngli_vk_default_vert_size);
+    if (ret != 0)
         return -1;
 
-    // reflect shaders
-    s->vert_reflection = ngli_spirv_create_reflection((uint32_t*)s->vert_data, s->vert_data_size);
-    if (!s->vert_reflection)
+    ret = shader_check_default(&s->shaders[NGLI_SHADER_TYPE_FRAGMENT], ngli_vk_default_frag, ngli_vk_default_frag_size);
+    if (ret != 0)
         return -1;
 
-    s->frag_reflection = ngli_spirv_create_reflection((uint32_t*)s->frag_data, s->frag_data_size);
-    if (!s->frag_reflection)
+    ret = ngli_program_init(node);
+    if (ret != 0)
         return -1;
-
-    VkPipelineShaderStageCreateInfo shader_stage_create_info[2] = {
-        {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = s->vert_shader,
-            .pName = "main",
-        },{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = s->frag_shader,
-            .pName = "main",
-        },
-    };
-    memcpy(s->shader_stage_create_info, shader_stage_create_info,
-           sizeof(shader_stage_create_info));
 #else
-    struct glcontext *gl = ctx->glcontext;
-
-    s->program_id = load_program(node, s->vertex, s->fragment);
-    if (!s->program_id)
-        return -1;
-
-    s->active_uniforms = ngli_program_probe_uniforms(node->name, gl, s->program_id);
-    s->active_attributes = ngli_program_probe_attributes(node->name, gl, s->program_id);
-    if (!s->active_uniforms || !s->active_attributes)
+    ret = ngli_program_init(node);
+    if (ret != 0)
         return -1;
 #endif
 
-    return 0;
+    return ret;
 }
 
 static void program_uninit(struct ngl_node *node)
 {
-    struct ngl_ctx *ctx = node->ctx;
-
-    struct program *s = node->priv_data;
-
-#ifdef VULKAN_BACKEND
-    struct glcontext *vk = ctx->glcontext;
-
-    ngli_spirv_destroy_reflection(&s->vert_reflection);
-    ngli_spirv_destroy_reflection(&s->frag_reflection);
-
-    vkDestroyShaderModule(vk->device, s->frag_shader, NULL);
-    vkDestroyShaderModule(vk->device, s->vert_shader, NULL);
-#else
-    struct glcontext *gl = ctx->glcontext;
-
-    ngli_hmap_freep(&s->active_uniforms);
-    ngli_hmap_freep(&s->active_attributes);
-    ngli_glDeleteProgram(gl, s->program_id);
-#endif
+    ngli_program_uninit(node);
 }
 
 const struct node_class ngli_program_class = {

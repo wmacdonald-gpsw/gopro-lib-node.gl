@@ -238,36 +238,26 @@ static VkResult create_graphics_pipeline(struct ngl_node *node, VkPipeline *pipe
     };
 #endif
 
-    VkPushConstantRange push_constant_range[] = {
+    VkPipelineShaderStageCreateInfo pipeline_shader_stage_create_infos[2] =
+    {
         {
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT, // XXX: fragment too?
-            .offset = 0,
-            .size = sizeof(node->modelview_matrix)
-                  + sizeof(node->projection_matrix),
-        }
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .module = program->shaders[NGLI_SHADER_TYPE_VERTEX].module,
+            .pName = "main",
+        },
+        {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .module = program->shaders[NGLI_SHADER_TYPE_FRAGMENT].module,
+            .pName = "main",
+        },
     };
-
-    /* Pipeline layout */
-    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .pushConstantRangeCount = NGLI_ARRAY_NB(push_constant_range),
-        .pPushConstantRanges = push_constant_range,
-    };
-
-    if (pipeline->uniform_buffers) {
-        pipeline_layout_create_info.setLayoutCount = 1;
-        pipeline_layout_create_info.pSetLayouts = &pipeline->descriptor_set_layout;
-    }
-
-    VkResult ret = vkCreatePipelineLayout(vk->device, &pipeline_layout_create_info, NULL,
-                                          &pipeline->pipeline_layout);
-    if (ret != VK_SUCCESS)
-        return ret;
 
     VkGraphicsPipelineCreateInfo graphics_pipeline_create_info = {
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount = NGLI_ARRAY_NB(program->shader_stage_create_info),
-        .pStages = program->shader_stage_create_info,
+        .stageCount = NGLI_ARRAY_NB(pipeline_shader_stage_create_infos),
+        .pStages = pipeline_shader_stage_create_infos,
         .pVertexInputState = &vertex_input_state_create_info,
         .pInputAssemblyState = &input_assembly_state_create_info,
         .pViewportState = &viewport_state_create_info,
@@ -276,7 +266,7 @@ static VkResult create_graphics_pipeline(struct ngl_node *node, VkPipeline *pipe
         .pDepthStencilState = NULL,
         .pColorBlendState = &colorblend_state_create_info,
         .pDynamicState = NULL,
-        .layout = pipeline->pipeline_layout,
+        .layout = program->layout,
         .renderPass = vk->render_pass,
         .subpass = 0,
     };
@@ -301,7 +291,7 @@ static int init_vertex_input_attrib_desc(struct ngl_node *node)
 
     for (int i = 0; i < s->nb_attribute_pairs; i++) {
         const struct nodeprograminfopair *pair = &s->attribute_pairs[i];
-        const struct shader_variable_reflection *info = pair->program_info;
+        const struct shader_attribute_reflection *info = pair->program_info;
         struct buffer *buffer = pair->node->priv_data;
 
         VkVertexInputBindingDescription bind_desc = {
@@ -317,13 +307,13 @@ static int init_vertex_input_attrib_desc(struct ngl_node *node)
 
         VkVertexInputAttributeDescription attr_desc = {
             .binding = s->nb_binds,
-            .location = info->offset,
+            .location = info->index,
             .format = data_format,
         };
 
         s->bind_descs[s->nb_binds] = bind_desc;
         s->attr_descs[s->nb_binds] = attr_desc;
-        s->vkbufs[s->nb_binds] = buffer->vkbuf;
+        s->vkbufs[s->nb_binds] = buffer->renderer_handle->buffers[0];
         s->nb_binds++;
     }
 
@@ -390,8 +380,8 @@ static int pair_node_to_attribinfo(struct render *s, const char *name,
     const struct program *program = pnode->priv_data;
 
 #ifdef VULKAN_BACKEND
-    const struct shader_variable_reflection *active_attribute =
-        ngli_hmap_get(program->vert_reflection->variables, name);
+    const struct shader_attribute_reflection *active_attribute =
+        ngli_hmap_get(program->shaders[NGLI_SHADER_TYPE_VERTEX].reflection->attributes, name);
 #else
     const struct attributeprograminfo *active_attribute =
         ngli_hmap_get(program->active_attributes, name);
@@ -566,13 +556,15 @@ static void render_draw(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
     struct render *s = node->priv_data;
+    struct pipeline *pipeline = &s->pipeline;
+    const struct program *program = pipeline->program->priv_data;
 
 #ifdef VULKAN_BACKEND
     struct glcontext *vk = ctx->glcontext;
 
     ngli_pipeline_upload_data(node);
 
-    VkCommandBuffer cmd_buf = s->pipeline.command_buffers[vk->img_index];
+    VkCommandBuffer cmd_buf = pipeline->command_buffers[vk->img_index];
 
     VkCommandBufferBeginInfo command_buffer_begin_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -582,6 +574,18 @@ static void render_draw(struct ngl_node *node)
     VkResult ret = vkBeginCommandBuffer(cmd_buf, &command_buffer_begin_info);
     if (ret != VK_SUCCESS)
         return;
+
+    VkMemoryBarrier memory_barrier = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT
+    };
+
+    vkCmdPipelineBarrier(cmd_buf,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+        0,
+        1, &memory_barrier,0, NULL, 0, NULL);
 
     const float *rgba = vk->config.clear_color;
     VkClearValue clear_color = {.color.float32={rgba[0], rgba[1], rgba[2], rgba[3]}};
@@ -598,17 +602,20 @@ static void render_draw(struct ngl_node *node)
 
     vkCmdBeginRenderPass(cmd_buf, &render_pass_begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
-    vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline.vkpipeline);
+
+    vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->vkpipeline);
 
     vkCmdBindVertexBuffers(cmd_buf, 0, s->nb_binds, s->vkbufs, s->vkbufs_offsets);
 
-    vkCmdPushConstants(cmd_buf, s->pipeline.pipeline_layout,
+    if ((program->flag & NGLI_PROGRAM_CONSTANT_ATTACHED)) {
+        vkCmdPushConstants(cmd_buf, program->layout,
                        VK_SHADER_STAGE_VERTEX_BIT,
                        0, sizeof(node->modelview_matrix), node->modelview_matrix);
-    vkCmdPushConstants(cmd_buf, s->pipeline.pipeline_layout,
+        vkCmdPushConstants(cmd_buf, program->layout,
                        VK_SHADER_STAGE_VERTEX_BIT,
                        sizeof(node->modelview_matrix),
                        sizeof(node->projection_matrix), node->projection_matrix);
+    }
 
     const struct geometry *geometry = s->geometry->priv_data;
     const struct buffer *indices_buffer = geometry->indices_buffer->priv_data;
@@ -618,12 +625,11 @@ static void render_draw(struct ngl_node *node)
                 index_node_type == NGL_NODE_BUFFERUINT);
     VkIndexType index_type = index_node_type == NGL_NODE_BUFFERUINT ? VK_INDEX_TYPE_UINT32
                                                                     : VK_INDEX_TYPE_UINT16;
-    vkCmdBindIndexBuffer(cmd_buf, indices_buffer->vkbuf, 0, index_type);
+    vkCmdBindIndexBuffer(cmd_buf, indices_buffer->renderer_handle->buffers[0], 0, index_type);
 
-    if (s->pipeline.nb_uniform_buffers) {
-        // TODO: should handle all type of buffer in different stages
-        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, s->pipeline.pipeline_layout,
-                                0, 1, &s->pipeline.descriptor_sets[vk->img_index], 0, NULL);
+    if ((program->flag & NGLI_PROGRAM_BUFFER_ATTACHED)) {
+        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, program->layout,
+                                0, 1, &program->descriptor_sets[vk->img_index], 0, NULL);
     }
 
     vkCmdDrawIndexed(cmd_buf, indices_buffer->count, 1, 0, 0, 0);
@@ -635,8 +641,6 @@ static void render_draw(struct ngl_node *node)
 
     vk->command_buffers[vk->nb_command_buffers++] = cmd_buf;
 #else
-    const struct program *program = s->pipeline.program->priv_data;
-
     struct glcontext *gl = ctx->glcontext;
 
     ngli_glUseProgram(gl, program->program_id);

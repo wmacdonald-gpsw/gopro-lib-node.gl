@@ -54,6 +54,24 @@ end:
     return buf;
 }
 
+static void print_flags(uint8_t flag) {
+    static const char *names[]= {
+        "attribute_input",
+        "attribute_output",
+        "block_uniform",
+        "block_constant",
+        "block_storage",
+        "block_dynamic",
+    };
+    static uint32_t nb_flags = sizeof(names) / sizeof(names[0]);
+    for (uint8_t i = 0; i < nb_flags; i++) {
+        if ((flag & (1 << i)) != 0) {
+            printf("%s ", names[i]);
+        }
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
     const char *filepath = argv[1];
@@ -71,26 +89,37 @@ int main(int argc, char *argv[])
     // output reflection
     printf("%s\n", filepath);
 
-    if (s->variables) {
-        printf("\t%d variables\n", ngli_hmap_count(s->variables));
-        const struct hmap_entry *variable_entry = NULL;
-        while ((variable_entry = ngli_hmap_next(s->variables, variable_entry))) {
-            const struct shader_variable_reflection *variable = variable_entry->data;
-            printf("\t\t%s %u\n", (variable->flag & NGL_SHADER_VARIABLE_INPUT) != 0 ? "input" : "output", variable->offset);
-            printf("\t\tname: %s\n", variable_entry->key);
+    printf("\t%d attributes\n", s->attributes ? ngli_hmap_count(s->attributes) : 0);
+    if (s->attributes) {
+        const struct hmap_entry *attribute_entry = NULL;
+        while ((attribute_entry = ngli_hmap_next(s->attributes, attribute_entry))) {
+            const struct shader_attribute_reflection *attribute = attribute_entry->data;
+
+            printf("\t\ttype: ");
+            print_flags(attribute->flag);
+            printf("\n");
+
+            printf("\t\tindex %u\n", attribute->index);
+            printf("\t\tname: %s\n", attribute_entry->key);
         }
     }
 
-    if (s->buffers) {
-        printf("\t%d buffers\n", ngli_hmap_count(s->buffers));
-        const struct hmap_entry *buffer_entry = NULL;
-        while ((buffer_entry = ngli_hmap_next(s->buffers, buffer_entry))) {
-            struct shader_buffer_reflection *buffer = buffer_entry->data;
-            printf("\t\ttype: %s\n", (buffer->flag & NGL_SHADER_BUFFER_UNIFORM) != 0 ? "uniform" : "constant");
-            printf("\t\tsize: %d\n", buffer->size);
-            if (buffer->variables) {
+    printf("\t%d blocks\n", s->blocks ? ngli_hmap_count(s->blocks) : 0);
+    if (s->blocks) {
+        const struct hmap_entry *block_entry = NULL;
+        while ((block_entry = ngli_hmap_next(s->blocks, block_entry))) {
+            struct shader_block_reflection *block = block_entry->data;
+
+            printf("\t\tindex: %u\n", block->index);
+            printf("\t\tname: %s\n", block_entry->key);
+            printf("\t\ttype: ");
+            print_flags(block->flag);
+            printf("\n");
+
+            printf("\t\tsize: %d\n", block->size);
+            if (block->variables) {
                 const struct hmap_entry *variable_entry = NULL;
-                while ((variable_entry = ngli_hmap_next(buffer->variables, variable_entry))) {
+                while ((variable_entry = ngli_hmap_next(block->variables, variable_entry))) {
                     struct shader_variable_reflection *variable = variable_entry->data;
                     printf("\t\t\toffset: %d\n", variable->offset);
                     printf("\t\t\tname: %s\n", variable_entry->key);

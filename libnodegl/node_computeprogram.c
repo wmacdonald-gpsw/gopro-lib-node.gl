@@ -28,87 +28,28 @@
 #include "nodegl.h"
 #include "nodes.h"
 #include "program.h"
+#include "spirv.h"
 
 #define OFFSET(x) offsetof(struct program, x)
 static const struct node_param computeprogram_params[] = {
 #ifdef VULKAN_BACKEND
-    {"compute", PARAM_TYPE_DATA, OFFSET(compute_data), .flags=PARAM_FLAG_CONSTRUCTOR,
+    {"compute", PARAM_TYPE_DATA, OFFSET(shaders[NGLI_SHADER_TYPE_COMPUTE].data),
                 .desc=NGLI_DOCSTRING("compute SPIR-V shader")},
 #else
-    {"compute", PARAM_TYPE_STR, OFFSET(compute), .flags=PARAM_FLAG_CONSTRUCTOR,
+    {"compute", PARAM_TYPE_STR, OFFSET(shaders[NGLI_SHADER_TYPE_COMPUTE].content), .flags=PARAM_FLAG_CONSTRUCTOR,
                 .desc=NGLI_DOCSTRING("compute shader")},
 #endif
     {NULL}
 };
 
-#ifdef VULKAN_BACKEND
-// TODO
-#else
-static GLuint load_shader(struct ngl_node *node, const char *compute_shader_data)
-{
-    struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *gl = ctx->glcontext;
-
-    GLuint program = ngli_glCreateProgram(gl);
-    GLuint compute_shader = ngli_glCreateShader(gl, GL_COMPUTE_SHADER);
-
-    ngli_glShaderSource(gl, compute_shader, 1, &compute_shader_data, NULL);
-    ngli_glCompileShader(gl, compute_shader);
-    if (ngli_program_check_status(gl, compute_shader, GL_COMPILE_STATUS) < 0)
-        goto fail;
-
-    ngli_glAttachShader(gl, program, compute_shader);
-    ngli_glLinkProgram(gl, program);
-    if (ngli_program_check_status(gl, program, GL_LINK_STATUS) < 0)
-        goto fail;
-
-    ngli_glDeleteShader(gl, compute_shader);
-
-    return program;
-
-fail:
-    if (compute_shader)
-        ngli_glDeleteShader(gl, compute_shader);
-    if (program)
-        ngli_glDeleteProgram(gl, program);
-
-    return 0;
-}
-#endif
-
 static int computeprogram_init(struct ngl_node *node)
 {
-#ifdef VULKAN_BACKEND
-    // TODO
-#else
-    struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *gl = ctx->glcontext;
-    struct program *s = node->priv_data;
-
-    s->program_id = load_shader(node, s->compute);
-    if (!s->program_id)
-        return -1;
-
-    s->active_uniforms = ngli_program_probe_uniforms(node->name, gl, s->program_id);
-    if (!s->active_uniforms)
-        return -1;
-#endif
-
-    return 0;
+    return ngli_program_init(node);
 }
 
 static void computeprogram_uninit(struct ngl_node *node)
 {
-#ifdef VULKAN_BACKEND
-    // TODO
-#else
-    struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *gl = ctx->glcontext;
-    struct program *s = node->priv_data;
-
-    ngli_hmap_freep(&s->active_uniforms);
-    ngli_glDeleteProgram(gl, s->program_id);
-#endif
+    ngli_program_uninit(node);
 }
 
 const struct node_class ngli_computeprogram_class = {

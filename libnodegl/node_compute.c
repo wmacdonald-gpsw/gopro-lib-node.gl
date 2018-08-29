@@ -80,13 +80,47 @@ static const struct node_param compute_params[] = {
     {NULL}
 };
 
+#ifdef VULKAN_BACKEND
+static VkResult create_compute_pipeline(struct ngl_node *node, VkPipeline *pipeline_dstp)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct compute *s = node->priv_data;
+
+    struct pipeline *pipeline = &s->pipeline;
+    const struct program *program = pipeline->program->priv_data;
+
+    VkPipelineShaderStageCreateInfo pipeline_shader_stage_create_info =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+        .module = program->shaders[NGLI_SHADER_TYPE_COMPUTE].module,
+        .pName = "main",
+    };
+
+    VkComputePipelineCreateInfo compute_pipeline_create_info = {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = pipeline_shader_stage_create_info,
+        .layout = program->layout,
+    };
+
+    return vkCreateComputePipelines(vk->device, NULL, 1,
+                                     &compute_pipeline_create_info,
+                                     NULL, pipeline_dstp);
+}
+#endif
+
 static int compute_init(struct ngl_node *node)
 {
-#ifndef VULKAN_BACKEND
     struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *gl = ctx->glcontext;
-
     struct compute *s = node->priv_data;
+
+#ifdef VULKAN_BACKEND
+    struct glcontext *vk = ctx->glcontext;
+    s->pipeline.create_func = create_compute_pipeline;
+    s->pipeline.queue_family_id = vk->queue_family_graphics_id;
+#else
+    struct glcontext *gl = ctx->glcontext;
 
     if (!(gl->features & NGLI_FEATURE_COMPUTE_SHADER_ALL)) {
         LOG(ERROR, "context does not support compute shaders");
@@ -123,15 +157,44 @@ static int compute_update(struct ngl_node *node, double t)
 
 static void compute_draw(struct ngl_node *node)
 {
-#ifdef VULKAN_BACKEND
-    // TODO
-#else
     struct ngl_ctx *ctx = node->ctx;
+    struct compute *s = node->priv_data;
+    struct pipeline *pipeline = &s->pipeline;
+    const struct program *program = pipeline->program->priv_data;
+
+#ifdef VULKAN_BACKEND
+    struct glcontext *vk = ctx->glcontext;
+
+    ngli_pipeline_upload_data(node);
+
+    VkCommandBuffer cmd_buf = pipeline->command_buffers[vk->img_index];
+
+    VkCommandBufferBeginInfo command_buffer_begin_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+    };
+
+    VkResult ret = vkBeginCommandBuffer(cmd_buf, &command_buffer_begin_info);
+    if (ret != VK_SUCCESS)
+        return;
+
+    vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->vkpipeline);
+
+    if ((program->flag & NGLI_PROGRAM_BUFFER_ATTACHED)) {
+        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, program->layout,
+                                0, 1, &program->descriptor_sets[vk->img_index], 0, NULL);
+    }
+
+    vkCmdDispatch(cmd_buf, s->nb_group_x, s->nb_group_y, s->nb_group_z);
+
+    ret = vkEndCommandBuffer(cmd_buf);
+    if (ret != VK_SUCCESS)
+        return;
+
+    vk->command_buffers[vk->nb_command_buffers++] = cmd_buf;
+#else
     struct glcontext *gl = ctx->glcontext;
 
-    struct compute *s = node->priv_data;
-
-    const struct program *program = s->pipeline.program->priv_data;
     ngli_glUseProgram(gl, program->program_id);
 
     ngli_pipeline_upload_data(node);

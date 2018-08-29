@@ -699,3 +699,59 @@ def vkuniform(cfg, color2=(1.0, 0.0, 1.0, 1.0), factor0=1.0, factor1=1.0):
     )
 
     return render
+
+@scene(nb_particles={'type': 'range', 'range': [1, 1000000]},
+        nb_thread={'type': 'range', 'range': [1, 1024]})
+def vkparticles(cfg, nb_particles=2048, nb_thread=16):
+    random.seed(0)
+
+    cfg.duration = 6
+    group_size = nb_particles / nb_thread
+
+    parameter_data = array.array('f')
+    for i in range(nb_particles):
+        parameter_data.extend([
+            random.uniform(-1.0, 1.0),
+            random.uniform(-1.0, 0.0),
+            0.0,
+        ])
+
+        parameter_data.extend([
+            random.uniform(-0.01, 0.01),
+            random.uniform(-0.05, 0.05),
+        ])
+
+    parameters = BufferFloat(data=parameter_data)
+
+    animkf = [AnimKeyFrameFloat(0, 0),
+              AnimKeyFrameFloat(cfg.duration, 1)]
+    time = UniformFloat(anim=AnimatedFloat(animkf))
+    duration = UniformFloat(cfg.duration)
+    compute_program = ComputeProgram(compute=cfg.get_comp('vkparticles'))
+
+    compute = Compute(nb_group_x=group_size, nb_group_y=group_size, nb_group_z=1, program=compute_program)
+    compute.update_uniforms(
+        time=time,
+        duration=duration,
+    )
+
+    positions = BufferVec3()
+    positions.set_count(nb_particles)
+    positions.set_stride(4 * 4)
+
+    compute.update_buffers(
+        parameters=parameters,
+        result=positions
+    )
+
+    geometry = Geometry(positions)
+    geometry.set_topology('points')
+
+    program = Program(fragment=cfg.get_frag('color'))
+    render = Render(geometry, program)
+    render.update_uniforms(color=UniformVec4(value=(1.0, 0.0, 0.0, 1.0)))
+
+    group = Group()
+    group.add_children(compute, render)
+
+    return Camera(group)

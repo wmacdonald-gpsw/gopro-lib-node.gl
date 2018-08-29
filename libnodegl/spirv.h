@@ -25,10 +25,24 @@
 #include <stdint.h>
 
 enum {
-    NGLI_SHADER_VARIABLE_INPUT   = 1 << 0,
-    NGLI_SHADER_VARIABLE_OUTPUT  = 1 << 1,
-    NGLI_SHADER_BUFFER_UNIFORM   = 1 << 2,
-    NGLI_SHADER_BUFFER_CONSTANT  = 1 << 3,
+    NGLI_SHADER_ATTRIBUTE_INPUT      = 1 << 0,
+    NGLI_SHADER_ATTRIBUTE_OUTPUT     = 1 << 1,
+    NGLI_SHADER_BLOCK_UNIFORM        = 1 << 2,
+    NGLI_SHADER_BLOCK_CONSTANT       = 1 << 3,
+    NGLI_SHADER_BLOCK_STORAGE        = 1 << 4,
+    NGLI_SHADER_BLOCK_DYNAMIC        = 1 << 5,
+};
+
+struct shader_attribute_reflection {
+    uint8_t index;
+    uint8_t flag;
+};
+
+struct shader_block_reflection {
+    struct hmap *variables;
+    uint16_t size;
+    uint8_t index;
+    uint8_t flag;
 };
 
 struct shader_variable_reflection {
@@ -36,15 +50,9 @@ struct shader_variable_reflection {
     uint8_t flag;
 };
 
-struct shader_buffer_reflection {
-    struct hmap *variables;
-    uint16_t size;
-    uint8_t flag;
-};
-
 struct shader_reflection {
-    struct hmap *variables;
-    struct hmap *buffers;
+    struct hmap *attributes;
+    struct hmap *blocks;
 };
 
 struct shader_reflection *ngli_spirv_create_reflection(const uint32_t *code, size_t size);

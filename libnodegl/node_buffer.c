@@ -29,6 +29,7 @@
 #include "log.h"
 #include "nodegl.h"
 #include "nodes.h"
+#include "renderer.h"
 
 #ifdef VULKAN_BACKEND
 // TODO
@@ -223,38 +224,17 @@ static int buffer_init(struct ngl_node *node)
 
 #ifdef VULKAN_BACKEND
         struct glcontext *vk = ctx->glcontext;
-
-        VkBufferCreateInfo buffer_create_info = {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-            .size = s->data_size,
-            .usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT
-                   | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
-                   | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, // XXX: allow more usage / filter them?
-            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        };
-        if (vkCreateBuffer(vk->device, &buffer_create_info, NULL, &s->vkbuf) != VK_SUCCESS)
+        s->renderer_handle = ngli_renderer_create_buffer(vk, s->data_size,
+                                                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                                            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+                                                            VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
+        if (!s->renderer_handle)
             return -1;
 
-        /* alloc madness */
-        VkMemoryRequirements mem_req;
-        vkGetBufferMemoryRequirements(vk->device, s->vkbuf, &mem_req);
-        VkMemoryAllocateInfo alloc_info = {
-            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-            .allocationSize = mem_req.size,
-            .memoryTypeIndex = ngli_vk_find_memory_type(vk, mem_req.memoryTypeBits,
-                                                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-        };
-        VkResult vkret = vkAllocateMemory(vk->device, &alloc_info, NULL, &s->vkmem);
-        if (vkret != VK_SUCCESS)
-            return -1;
-        vkBindBufferMemory(vk->device, s->vkbuf, s->vkmem, 0);
-
-        /* transfer cpu data to gpu with a memory map */
-        void *mapped_mem;
-        vkMapMemory(vk->device, s->vkmem, 0, s->data_size, 0, &mapped_mem);
-        memcpy(mapped_mem, s->data, s->data_size);
-        vkUnmapMemory(vk->device, s->vkmem);
-
+        // TODO: cpu allocation + map could be avoid for gpu buffer only (init_from_count?)
+        void *mapped_memory = ngli_renderer_map_buffer(vk, s->renderer_handle);
+        memcpy(mapped_memory, s->data, s->data_size);
+        ngli_renderer_unmap_buffer(vk, s->renderer_handle);
 #else
         struct glcontext *gl = ctx->glcontext;
 
@@ -282,8 +262,7 @@ static void buffer_uninit(struct ngl_node *node)
 
 #ifdef VULKAN_BACKEND
     struct glcontext *vk = ctx->glcontext;
-    vkDestroyBuffer(vk->device, s->vkbuf, NULL);
-    vkFreeMemory(vk->device, s->vkmem, NULL);
+    ngli_renderer_destroy_buffer(vk, s->renderer_handle);
 #else
     struct glcontext *gl = ctx->glcontext;
     ngli_glDeleteBuffers(gl, 1, &s->buffer_id);

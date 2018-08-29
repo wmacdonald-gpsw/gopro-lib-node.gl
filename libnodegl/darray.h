@@ -19,12 +19,32 @@
  * under the License.
  */
 
-#ifndef PROGRAM_H
-#define PROGRAM_H
+#ifndef DARRAY_H
+#define DARRAY_H
 
-#include "nodes.h"
+#include <stdint.h>
 
-int ngli_program_init(struct ngl_node *node);
-void ngli_program_uninit(struct ngl_node *node);
+struct darray;
+
+
+// creation/destruction functions
+struct darray *ngli_darray_create(uint32_t element_size);
+void ngli_darray_freep(struct darray **v);
+
+// information functions
+uint32_t ngli_darray_size(const struct darray *v);
+void ngli_darray_clear(struct darray *v);
+
+// access functions
+void *ngli_darray_get(struct darray *v, uint32_t index);
+void *ngli_darray_begin(struct darray *v);
+void *ngli_darray_end(struct darray *v);
+
+// modify functions
+void *ngli_darray_add(struct darray *v);
+void ngli_darray_resize(struct darray *v, uint32_t size);
+void ngli_darray_expand(struct darray *v, uint32_t count);
+void *ngli_darray_expand_to(struct darray *v, uint32_t index);
+void ngli_darray_reserve(struct darray *v, uint32_t capacity);
 
 #endif

@@ -24,10 +24,34 @@
 
 #include "glincludes.h"
 #include "log.h"
+#include "darray.h"
 #include "nodes.h"
 #include "program.h"
+#include "renderer.h"
+#include "spirv.h"
 
-int ngli_program_check_status(const struct glcontext *gl, GLuint id, GLenum status)
+#ifdef VULKAN_BACKEND
+static void add_shader_binding(struct darray *bindings, uint32_t index, uint32_t type)
+{
+    VkDescriptorSetLayoutBinding *descriptor_set_layout_binding = ngli_darray_add(bindings);
+    descriptor_set_layout_binding->binding = index;
+    descriptor_set_layout_binding->descriptorType = type;
+    descriptor_set_layout_binding->descriptorCount = 1;
+    // TODO: should depends on node_render vs node_compute
+    descriptor_set_layout_binding->stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+}
+
+static void add_shader_constant(struct darray *constants, uint32_t size, uint32_t stage)
+{
+    VkPushConstantRange *push_constant_range = ngli_darray_add(constants);
+    VkPushConstantRange *previous_push_constant_range =  ((VkPushConstantRange *)ngli_darray_get(constants, ngli_darray_size(constants)-1));
+    push_constant_range->stageFlags = stage;
+    push_constant_range->offset = previous_push_constant_range->offset + previous_push_constant_range->size;
+    push_constant_range->size = size;
+}
+
+#else
+static int ngli_program_check_status(const struct glcontext *gl, GLuint id, GLenum status)
 {
     char *info_log = NULL;
     int info_log_length = 0;
@@ -74,7 +98,7 @@ static void free_pinfo(void *user_arg, void *data)
     free(data);
 }
 
-struct hmap *ngli_program_probe_uniforms(const char *node_name, struct glcontext *gl, GLuint pid)
+static struct hmap *ngli_program_probe_uniforms(const char *node_name, struct glcontext *gl, GLuint pid)
 {
     struct hmap *umap = ngli_hmap_create();
     if (!umap)
@@ -116,7 +140,7 @@ struct hmap *ngli_program_probe_uniforms(const char *node_name, struct glcontext
     return umap;
 }
 
-struct hmap *ngli_program_probe_attributes(const char *node_name, struct glcontext *gl, GLuint pid)
+static struct hmap *ngli_program_probe_attributes(const char *node_name, struct glcontext *gl, GLuint pid)
 {
     struct hmap *amap = ngli_hmap_create();
     if (!amap)
@@ -147,4 +171,231 @@ struct hmap *ngli_program_probe_attributes(const char *node_name, struct glconte
     }
 
     return amap;
+}
+#endif
+
+int ngli_program_init(struct ngl_node *node) {
+    struct ngl_ctx *ctx = node->ctx;
+    struct program *s = node->priv_data;
+
+#ifdef VULKAN_BACKEND
+    struct glcontext *vk = ctx->glcontext;
+    VkResult vkret = -1;
+
+    struct darray *bindings = ngli_darray_create(sizeof(struct VkDescriptorSetLayoutBinding));
+    struct darray *constants = ngli_darray_create(sizeof(struct VkPushConstantRange));
+
+    const uint32_t constant_stages[NGLI_SHADER_TYPE_COUNT] = {
+        VK_SHADER_STAGE_VERTEX_BIT,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        VK_SHADER_STAGE_COMPUTE_BIT
+    };
+    for (uint8_t i = 0; i < NGLI_SHADER_TYPE_COUNT; i++) {
+        struct shader *current_shader = &s->shaders[i];
+
+        if (!current_shader->data)
+            continue;
+
+        current_shader->module = ngli_renderer_create_shader(vk, current_shader->data, current_shader->data_size);
+        if (current_shader->module == VK_NULL_HANDLE)
+            return -1;
+
+        // reflect shader
+        current_shader->reflection = ngli_spirv_create_reflection((uint32_t*)current_shader->data, current_shader->data_size);
+        if (!current_shader->reflection)
+            return -1;
+
+        if (current_shader->reflection->blocks) {
+            const struct hmap_entry *block_entry = NULL;
+            while ((block_entry = ngli_hmap_next(current_shader->reflection->blocks, block_entry))) {
+                struct shader_block_reflection *block = block_entry->data;
+                if ((block->flag & NGLI_SHADER_BLOCK_CONSTANT))
+                    add_shader_constant(constants, block->size, constant_stages[i]);
+                else if ((block->flag & NGLI_SHADER_BLOCK_UNIFORM))
+                    add_shader_binding(bindings, block->index, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+                else if ((block->flag & NGLI_SHADER_BLOCK_STORAGE))
+                    add_shader_binding(bindings, block->index, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+            };
+        }
+    }
+
+     // create bindings and buffers needed
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    };
+
+    // constants
+    const uint32_t nb_constants = ngli_darray_size(constants);
+    if (nb_constants) {
+        pipeline_layout_create_info.pushConstantRangeCount = nb_constants;
+        pipeline_layout_create_info.pPushConstantRanges = ngli_darray_begin(constants);
+        s->flag |= NGLI_PROGRAM_CONSTANT_ATTACHED;
+    }
+
+    // bindings
+    const uint32_t nb_bindings = ngli_darray_size(bindings);
+    if (nb_bindings) {
+        VkDescriptorPoolSize *descriptor_pool_sizes = calloc(NGLI_RENDERER_BUFFER_TYPE_COUNT, sizeof(struct VkDescriptorPoolSize));
+        if (!descriptor_pool_sizes)
+            goto fail;
+
+        static VkDescriptorType types[NGLI_RENDERER_BUFFER_TYPE_COUNT] = {
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        };
+        for (uint32_t i = 0; i < NGLI_RENDERER_BUFFER_TYPE_COUNT; i++) {
+            VkDescriptorPoolSize *descriptor_pool_size = &descriptor_pool_sizes[i];
+            descriptor_pool_size->type = types[i];
+            descriptor_pool_size->descriptorCount = 16; // ???
+        }
+
+        VkDescriptorPoolCreateInfo descriptor_pool_create_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .poolSizeCount = NGLI_RENDERER_BUFFER_TYPE_COUNT,
+            .pPoolSizes = descriptor_pool_sizes,
+            .maxSets = vk->nb_framebuffers,
+        };
+
+        // TODO: descriptor tool should be shared for all nodes
+        vkret = vkCreateDescriptorPool(vk->device, &descriptor_pool_create_info, NULL, &s->descriptor_pool);
+        free(descriptor_pool_sizes);
+        if (vkret != VK_SUCCESS)
+            goto fail;
+
+        VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = nb_bindings,
+            .pBindings = ngli_darray_begin(bindings),
+        };
+
+        // create descriptor_set_layout
+        vkret = vkCreateDescriptorSetLayout(vk->device, &descriptor_set_layout_create_info, NULL, &s->descriptor_set_layout);
+        if (vkret != VK_SUCCESS)
+            goto fail;
+
+        VkDescriptorSetLayout *descriptor_set_layouts = calloc(vk->nb_framebuffers, sizeof(*descriptor_set_layouts));
+        for (uint32_t i = 0; i < vk->nb_framebuffers; i++) {
+            descriptor_set_layouts[i] = s->descriptor_set_layout;
+        }
+
+        VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = s->descriptor_pool,
+            .descriptorSetCount = vk->nb_framebuffers,
+            .pSetLayouts = descriptor_set_layouts,
+        };
+
+        s->descriptor_sets = calloc(vk->nb_framebuffers, sizeof(*s->descriptor_sets));
+        vkret = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, s->descriptor_sets);
+        free(descriptor_set_layouts);
+        if (vkret != VK_SUCCESS)
+            goto fail;
+
+        s->flag |= NGLI_PROGRAM_BUFFER_ATTACHED;
+    }
+
+    if (s->descriptor_set_layout != VK_NULL_HANDLE) {
+        pipeline_layout_create_info.setLayoutCount = 1;
+        pipeline_layout_create_info.pSetLayouts = &s->descriptor_set_layout;
+    }
+
+    vkret = vkCreatePipelineLayout(vk->device, &pipeline_layout_create_info, NULL, &s->layout);
+    if (vkret != VK_SUCCESS)
+        goto fail;
+
+    ngli_darray_freep(&bindings);
+    ngli_darray_freep(&constants);
+#else
+    struct glcontext *gl = ctx->glcontext;
+    static const uint32_t shader_types[NGLI_SHADER_TYPE_COUNT] = {
+        GL_VERTEX_SHADER,
+        GL_FRAGMENT_SHADER,
+        GL_COMPUTE_SHADER
+    };
+
+    s->program_id = ngli_glCreateProgram(gl);
+    for (uint8_t i = 0; i < NGLI_SHADER_TYPE_COUNT; i++) {
+        struct shader* current_shader = &s->shaders[i];
+
+        if (!current_shader->content)
+            continue;
+
+        current_shader->shader_id = ngli_glCreateShader(gl, shader_types[i]);
+        ngli_glShaderSource(gl, current_shader->shader_id, 1, &current_shader->content, NULL);
+        ngli_glCompileShader(gl, current_shader->shader_id);
+        if (ngli_program_check_status(gl, current_shader->shader_id, GL_COMPILE_STATUS) < 0)
+            goto fail;
+
+        ngli_glAttachShader(gl, s->program_id, current_shader->shader_id);
+    }
+    ngli_glLinkProgram(gl, s->program_id);
+    if (ngli_program_check_status(gl, s->program_id, GL_LINK_STATUS) < 0)
+        goto fail;
+
+    s->active_uniforms = ngli_program_probe_uniforms(node->name, gl, s->program_id);
+    if (!s->active_uniforms)
+        goto fail;
+
+    if (!s->shaders[NGLI_SHADER_TYPE_COMPUTE].content) {
+        s->active_attributes = ngli_program_probe_attributes(node->name, gl, s->program_id);
+        if (!s->active_attributes)
+            goto fail;
+    }
+#endif
+
+    return 0;
+
+fail:
+#ifdef VULKAN_BACKEND
+    ngli_darray_freep(&bindings);
+    ngli_darray_freep(&constants);
+#endif
+    ngli_program_uninit(node);
+    return -1;
+}
+
+void ngli_program_uninit(struct ngl_node *node) {
+    struct ngl_ctx *ctx = node->ctx;
+    struct program *s = node->priv_data;
+
+#ifdef VULKAN_BACKEND
+    struct glcontext *vk = ctx->glcontext;
+
+    if (s->descriptor_set_layout != VK_NULL_HANDLE)
+        vkDestroyDescriptorSetLayout(vk->device, s->descriptor_set_layout, NULL);
+
+    if (s->descriptor_pool != VK_NULL_HANDLE)
+        vkDestroyDescriptorPool(vk->device, s->descriptor_pool, NULL);
+
+    free(s->descriptor_sets);
+
+    if (s->layout != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(vk->device, s->layout, NULL);
+
+    for (uint8_t i = 0; i < NGLI_SHADER_TYPE_COUNT; i++) {
+        struct shader* current_shader = &s->shaders[i];
+
+        if (!current_shader->data)
+            continue;
+
+        if (current_shader->reflection)
+            ngli_spirv_destroy_reflection(&current_shader->reflection);
+
+        if (current_shader->module != VK_NULL_HANDLE)
+            ngli_renderer_destroy_shader(vk, current_shader->module);
+    }
+#else
+    struct glcontext *gl = ctx->glcontext;
+
+    for (uint8_t i = 0; i < NGLI_SHADER_TYPE_COUNT; i++) {
+        struct shader* current_shader = &s->shaders[i];
+
+        if (current_shader->shader_id)
+            ngli_glDeleteShader(gl, current_shader->shader_id);
+    }
+
+    ngli_hmap_freep(&s->active_uniforms);
+    if (s->program_id)
+        ngli_glDeleteProgram(gl, s->program_id);
+#endif
 }

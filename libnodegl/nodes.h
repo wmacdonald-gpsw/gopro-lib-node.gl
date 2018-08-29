@@ -195,6 +195,21 @@ struct geometry {
 struct ngl_node *ngli_geometry_generate_buffer(struct ngl_ctx *ctx, int type, int count, int size, void *data);
 struct ngl_node *ngli_geometry_generate_indices_buffer(struct ngl_ctx *ctx, int count);
 
+enum {
+    NGLI_RENDERER_BUFFER_TYPE_UNIFORM,
+    NGLI_RENDERER_BUFFER_TYPE_STORAGE,
+    NGLI_RENDERER_BUFFER_TYPE_COUNT
+};
+
+struct rendererbuffer {
+#ifdef VULKAN_BACKEND
+    uint32_t size;
+    uint32_t usage;
+    VkBuffer *buffers;
+    VkDeviceMemory allocation;
+#endif
+};
+
 struct buffer {
     int count;              // number of elements
     uint8_t *data;          // buffer of <count> elements
@@ -223,9 +238,7 @@ struct buffer {
     int generate_gl_buffer;
 
 #ifdef VULKAN_BACKEND
-    // TODO
-    VkBuffer vkbuf;
-    VkDeviceMemory vkmem;
+    struct rendererbuffer *renderer_handle;
 #else
     GLuint buffer_id;
 #endif
@@ -261,27 +274,45 @@ struct rtt {
 #endif
 };
 
-struct program {
+enum {
+    NGLI_SHADER_TYPE_VERTEX = 0,
+    NGLI_SHADER_TYPE_FRAGMENT,
+    NGLI_SHADER_TYPE_COMPUTE,
+    NGLI_SHADER_TYPE_COUNT
+};
+
+struct shader {
 #ifdef VULKAN_BACKEND
-    // TODO: remove binary data
-    uint8_t *vert_data;
-    int vert_data_size;
-    uint8_t *frag_data;
-    int frag_data_size;
-    uint8_t *compute_data;
-    int compute_data_size;
-
-    VkShaderModule vert_shader;
-    VkShaderModule frag_shader;
-    VkPipelineShaderStageCreateInfo shader_stage_create_info[2];
-
-    struct shader_reflection *vert_reflection;
-    struct shader_reflection *frag_reflection;
+    uint8_t *data;
+    uint32_t data_size;
+    VkShaderModule module;
+    struct shader_reflection *reflection;
 #else
-    const char *vertex;
-    const char *fragment;
-    const char *compute;
+    const char *content;
+    GLuint shader_id;
+#endif
+};
 
+struct shaderblock {
+    uint32_t index;
+    uint32_t offset;
+    uint32_t size;
+};
+
+enum {
+    NGLI_PROGRAM_CONSTANT_ATTACHED     = 1 << 0,
+    NGLI_PROGRAM_BUFFER_ATTACHED       = 1 << 1,
+};
+
+struct program {
+    struct shader shaders[NGLI_SHADER_TYPE_COUNT];
+#ifdef VULKAN_BACKEND
+    VkDescriptorPool descriptor_pool;
+    VkDescriptorSetLayout descriptor_set_layout;
+    VkDescriptorSet *descriptor_sets;
+    VkPipelineLayout layout;
+    uint8_t flag;
+#else
     GLuint program_id;
     struct hmap *active_uniforms;
     struct hmap *active_attributes;
@@ -441,7 +472,6 @@ struct pipeline {
     int last_width;
     int last_height;
 
-    VkPipelineLayout pipeline_layout;
     VkPipeline vkpipeline;
     VkCommandBuffer *command_buffers;
     int nb_command_buffers; // XXX drop for vk->nb_framebuffers
@@ -450,15 +480,7 @@ struct pipeline {
     int queue_family_id;
     VkCommandPool command_pool;
 
-    VkDescriptorPool descriptor_pool;
-    VkDescriptorSetLayout descriptor_set_layout;
-    VkDescriptorSet *descriptor_sets;
-
-    VkBuffer *uniform_buffers;
-    uint32_t *uniform_buffer_sizes;
-    uint32_t nb_uniform_buffers;
-    VkDeviceMemory *uniform_device_memory;
-    uint32_t uniform_device_memory_size;
+    struct rendererbuffer *uniform_rendererbuffer;
 #else
     GLint *buffer_ids;
 #endif

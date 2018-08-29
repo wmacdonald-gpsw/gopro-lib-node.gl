@@ -241,7 +241,7 @@ Parameter | Ctor. | Type | Description | Default
 
 Parameter | Ctor. | Type | Description | Default
 --------- | :---: | ---- | ----------- | :-----:
-`compute` | ✓ | [`data`](#parameter-types) | compute SPIR-V shader | 
+`compute` |  | [`data`](#parameter-types) | compute SPIR-V shader |
 
 
 **Source**: [node_computeprogram.c](/libnodegl/node_computeprogram.c)

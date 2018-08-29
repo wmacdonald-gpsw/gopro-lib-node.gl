@@ -162,7 +162,6 @@ int ngli_glcontext_check_extension(const char *extension, const char *extensions
 int ngli_glcontext_check_gl_error(const struct glcontext *glcontext, const char *context);
 
 #ifdef VULKAN_BACKEND
-int ngli_vk_find_memory_type(struct glcontext *vk, uint32_t type_filter, VkMemoryPropertyFlags props);
 #else
 #include "glwrappers.h"
 #endif

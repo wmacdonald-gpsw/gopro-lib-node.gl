@@ -53,6 +53,7 @@ LIB_PCNAME   = $(LIB_BASENAME).pc
 
 LIB_OBJS = api.o                    \
            bstr.o                   \
+           darray.o                 \
            deserialize.o            \
            dot.o                    \
            glstate.o                \
@@ -89,8 +90,8 @@ LIB_OBJS = api.o                    \
            nodes.o                  \
            params.o                 \
            pipeline.o               \
+           program.o                \
            serialize.o              \
-           spirv.o                  \
            transforms.o             \
            utils.o                  \
 
@@ -100,13 +101,14 @@ LIB_OBJS += $(LIB_OBJS_ARCH_$(ARCH))
 
 ifeq ($(BACKEND),vk)
 LIB_OBJS += backend_vk.o            \
+            renderer.o              \
+            spirv.o                 \
             vk_spirv.o              \
 
 else
 LIB_OBJS += backend_gl.o            \
             glcontext.o             \
             hwupload.o              \
-            program.o               \
 
 LIB_EXTRA_OBJS_Linux     = glcontext_x11.o glcontext_egl.o
 LIB_EXTRA_OBJS_Darwin    = glcontext_nsgl.o
@@ -272,7 +274,7 @@ testprogs: $(TESTPROGS)
 test_asm: LDLIBS = $(PROJECT_LDLIBS) -lm
 test_asm: test_asm.o math_utils.o $(LIB_OBJS_ARCH_$(ARCH))
 test_hmap: test_hmap.o utils.o
-test_reflection: test_reflection.o spirv.o hmap.o utils.o
+test_reflection: test_reflection.o spirv.o hmap.o darray.o utils.o
 test_utils: test_utils.o utils.o
 
 
