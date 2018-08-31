@@ -5,8 +5,10 @@ from pynodegl import (
         AnimKeyFrameBuffer,
         AnimKeyFrameFloat,
         AnimKeyFrameVec3,
+        AnimKeyFrameVec4,
         AnimatedBufferVec3,
         AnimatedFloat,
+        AnimatedVec4,
         AnimatedVec3,
         Camera,
         GraphicConfig,
@@ -171,3 +173,21 @@ def animated_buffer(cfg, dim=50):
     render = Render(quad, prog)
     render.update_textures(tex0=random_tex)
     return render
+
+@scene()
+def vkanimated_uniform(cfg):
+    m0 = cfg.medias[0]
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    q = Quad((-0.5, -0.5, 0), (1, 0, 0), (0, 1, 0))
+    p = Program(fragment=cfg.get_frag('vkmatrix-transform'))
+    ts = Render(q, p)
+
+    color_animkf = [AnimKeyFrameVec4(0, (1.0, 0.0, 0.0, 1.0)),
+                    AnimKeyFrameVec4(cfg.duration*0.5, (0.0, 1.0, 0.0, 1.0)),
+                    AnimKeyFrameVec4(cfg.duration, (0.0, 0.0, 1.0, 1.0))]
+
+    c = UniformVec4(anim=AnimatedVec4(color_animkf))
+    ts.update_uniforms(color=c)
+
+    return ts

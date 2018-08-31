@@ -276,6 +276,42 @@ static int update_images_and_samplers(struct ngl_node *node)
 }
 #endif
 
+#ifdef VULKAN_BACKEND
+static void update_one_uniform(const struct ngl_node *node, void* buffer)
+{
+    const struct uniform *u = node->priv_data;
+    switch (node->class->id) {
+        case NGL_NODE_UNIFORMFLOAT: {
+            *(float *)buffer = (float)u->scalar;
+            break;
+        }
+        case NGL_NODE_UNIFORMVEC2: {
+            memcpy(buffer, u->vector, 2 * sizeof(float));
+            break;
+        }
+        case NGL_NODE_UNIFORMVEC3: {
+            memcpy(buffer, u->vector, 3 * sizeof(float));
+            break;
+        }
+        case NGL_NODE_UNIFORMVEC4: {
+            memcpy(buffer, u->vector, 4 * sizeof(float));
+            break;
+        }
+        case NGL_NODE_UNIFORMINT: {
+           *(int *)buffer = u->ival;
+            break;
+        }
+        case NGL_NODE_UNIFORMMAT4: {
+            memcpy(buffer, u->matrix, sizeof(u->matrix));
+            break;
+        }
+        default:
+            LOG(ERROR, "unsupported uniform of type %s", node->class->name);
+            break;
+    }
+}
+#endif
+
 static int update_uniforms(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -291,34 +327,7 @@ static int update_uniforms(struct ngl_node *node)
     for (int i = 0; i < s->nb_uniform_pairs; i++) {
         const struct nodeprograminfopair *pair = &s->uniform_pairs[i];
         const int offset = (intptr_t)pair->program_info; // HACK / won't work with quaternion
-        const struct ngl_node *unode = pair->node;
-        void *datap = mapped_memory + offset;
-
-        switch (unode->class->id) {
-            case NGL_NODE_UNIFORMFLOAT: {
-                const struct uniform *u = unode->priv_data;
-                *(float *)datap = (float)u->scalar;
-                break;
-            }
-            case NGL_NODE_UNIFORMVEC2: {
-                const struct uniform *u = unode->priv_data;
-                memcpy(datap, u->vector, 2 * sizeof(float));
-                break;
-            }
-            case NGL_NODE_UNIFORMVEC3: {
-                const struct uniform *u = unode->priv_data;
-                memcpy(datap, u->vector, 3 * sizeof(float));
-                break;
-            }
-            case NGL_NODE_UNIFORMVEC4: {
-                const struct uniform *u = unode->priv_data;
-                memcpy(datap, u->vector, 4 * sizeof(float));
-                break;
-            }
-            default:
-                LOG(ERROR, "unsupported uniform of type %s", unode->class->name);
-                break;
-        }
+        update_one_uniform(pair->node, mapped_memory + offset);
     }
     ngli_renderer_unmap_buffer(vk, s->uniform_rendererbuffer);
 #else
@@ -586,6 +595,7 @@ int ngli_pipeline_init(struct ngl_node *node)
                 return -1;
 
         // attach uniform buffers
+        void* uniform_memory = ngli_renderer_map_buffer(vk, s->uniform_rendererbuffer);
         uint32_t uniform_block_offset = 0;
         for (uint8_t i = 0; i < NGLI_SHADER_TYPE_COUNT; i++) {
             struct shader *current_shader = &program->shaders[i];
@@ -614,13 +624,22 @@ int ngli_pipeline_init(struct ngl_node *node)
                                 return ret;
 
                             const struct shaderblockvariable *variable = variable_entry->data;
-                            intptr_t uniform_offset = uniform_block_offset + variable->offset;
-                            struct nodeprograminfopair pair = {
-                                .node = unode,
-                                .program_info = (void *)uniform_offset,
-                            };
-                            snprintf(pair.name, sizeof(pair.name), "%s", variable_entry->key);
-                            s->uniform_pairs[s->nb_uniform_pairs++] = pair;
+                            uint64_t uniform_offset = uniform_block_offset + variable->offset;
+
+                            // create nodeprograminfopair only for animated
+                            struct uniform *uniform = unode->priv_data;
+                            if (uniform->anim || uniform->transform) {
+                                struct nodeprograminfopair pair = {
+                                    .node = unode,
+                                    .program_info = (void *)uniform_offset,
+                                };
+                                snprintf(pair.name, sizeof(pair.name), "%s", variable_entry->key);
+                                s->uniform_pairs[s->nb_uniform_pairs++] = pair;
+                            }
+                            else {
+                                for (uint32_t j = 0; j < vk->nb_framebuffers; j++)
+                                    update_one_uniform(unode, uniform_memory + (j*s->uniform_rendererbuffer->size) + uniform_offset);
+                            }
                         }
                     }
                     uniform_block_offset += aligned_size;
@@ -643,6 +662,7 @@ int ngli_pipeline_init(struct ngl_node *node)
                 }
             }
         }
+        ngli_renderer_unmap_buffer(vk, s->uniform_rendererbuffer);
     }
 #else
     int nb_uniforms = s->uniforms ? ngli_hmap_count(s->uniforms) : 0;
