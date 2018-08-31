@@ -286,17 +286,11 @@ struct shader {
     uint8_t *data;
     uint32_t data_size;
     VkShaderModule module;
-    struct shader_reflection *reflection;
+    struct shaderdesc *reflection;
 #else
     const char *content;
     GLuint shader_id;
 #endif
-};
-
-struct shaderblock {
-    uint32_t index;
-    uint32_t offset;
-    uint32_t size;
 };
 
 enum {

@@ -28,7 +28,7 @@
 #include "hmap.h"
 #include "darray.h"
 
-struct spirv_header
+struct spirvheader
 {
     uint32_t magic;
     uint32_t version;
@@ -37,48 +37,48 @@ struct spirv_header
     uint32_t reserved;
 };
 
-struct shader_variable_internal
+struct shaderblockvariableinternal
 {
     const char *name;
     uint16_t offset;
 };
 
-struct shader_type_internal
+struct shadertypeinternal
 {
     const char *name;
     struct darray *variables;
     uint16_t size;
+    uint16_t flag;
     uint8_t index;
-    uint8_t flag;
 };
 
-struct shader_internal
+struct shaderdescinternal
 {
     struct darray *types;
-    struct darray *attribute_indices;
-    struct darray *block_indices;
+    struct darray *attributes;
+    struct darray *bindings;
 };
 
-struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, size_t size)
+struct shaderdesc* ngli_shaderdesc_create(const uint32_t *code, size_t size)
 {
     // header
-    if (size < sizeof(struct spirv_header))
+    if (size < sizeof(struct spirvheader))
         return NULL;
 
-    struct spirv_header *header = (struct spirv_header*)code;
+    struct spirvheader *header = (struct spirvheader*)code;
     if (header->magic != 0x07230203)
         return NULL;
     if (header->version != 0x00010000) // XXX: allow more?
         return NULL;
 
-    code += sizeof(struct spirv_header) / sizeof(uint32_t);
-    size -= sizeof(struct spirv_header);
+    code += sizeof(struct spirvheader) / sizeof(uint32_t);
+    size -= sizeof(struct spirvheader);
 
     // data
-    struct shader_internal internal = {0};
-    internal.types = ngli_darray_create(sizeof(struct shader_type_internal));
-    internal.attribute_indices = ngli_darray_create(sizeof(uint32_t));
-    internal.block_indices = ngli_darray_create(sizeof(uint32_t));
+    struct shaderdescinternal internal = {0};
+    internal.types = ngli_darray_create(sizeof(struct shadertypeinternal));
+    internal.attributes = ngli_darray_create(sizeof(uint32_t));
+    internal.bindings = ngli_darray_create(sizeof(uint32_t));
 
     while (size > 0) {
         const uint32_t opcode0    = code[0];
@@ -95,8 +95,7 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
             case 5: {
                 const uint32_t type_id = code[1];
                 const char *name = (const char *)&code[2];
-
-                struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
                 type->name = name;
                 break;
             }
@@ -107,12 +106,13 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
                 // const uint32_t variable_index = code[2];
                 const char *name = (const char *)&code[3];
 
-                struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
                 if (!type->variables) {
-                    type->variables = ngli_darray_create(sizeof(struct shader_variable_internal));
+                    type->variables = ngli_darray_create(sizeof(struct shaderblockvariableinternal));
                 }
-                struct shader_variable_internal *variable = ngli_darray_add(type->variables);
+                struct shaderblockvariableinternal *variable = ngli_darray_add(type->variables);
                 variable->name = name;
+
                 break;
             }
 
@@ -120,7 +120,7 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
             case 22: {
                 const uint32_t type_id = code[1];
                 const uint32_t type_size = code[2];
-                struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
                 type->size = type_size / 8;
                 break;
             }
@@ -130,8 +130,8 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
                 const uint32_t type_id = code[1];
                 const uint32_t component_type_id = code[2];
                 const uint32_t component_count = code[3];
-                struct shader_type_internal *component_type = ngli_darray_expand_to(internal.types, component_type_id);
-                struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
+                struct shadertypeinternal *component_type = ngli_darray_expand_to(internal.types, component_type_id);
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
                 type->size = component_type->size * component_count;
                 break;
             }
@@ -141,9 +141,45 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
                 const uint32_t type_id = code[1];
                 const uint32_t column_type_id = code[2];
                 const uint32_t column_count = code[3];
-                struct shader_type_internal *column_type = ngli_darray_expand_to(internal.types, column_type_id);
-                struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
+                struct shadertypeinternal *column_type = ngli_darray_expand_to(internal.types, column_type_id);
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
                 type->size = column_type->size * column_count;
+                break;
+            }
+
+            // OpTypeImage
+            case 25: {
+                const uint32_t type_id = code[1];
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
+                type->flag |= NGLI_SHADER_TEXTURE;
+                break;
+            }
+
+            // OpTypeSampler
+            case 26: {
+                const uint32_t pointer_id = code[1];
+                const uint32_t type_id = code[2];
+
+                struct shadertypeinternal *pointer_type = ngli_darray_expand_to(internal.types, pointer_id);
+                pointer_type->flag = NGLI_SHADER_INDIRECTION;
+                pointer_type->index = type_id;
+
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
+                type->flag |= NGLI_SHADER_SAMPLER;
+                break;
+            }
+
+            // OpTypeSampledImage
+            case 27: {
+                const uint32_t pointer_id = code[1];
+                const uint32_t type_id = code[2];
+
+                struct shadertypeinternal *pointer_type = ngli_darray_expand_to(internal.types, pointer_id);
+                pointer_type->flag = NGLI_SHADER_INDIRECTION;
+                pointer_type->index = type_id;
+
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
+                type->flag |= NGLI_SHADER_SAMPLER;
                 break;
             }
 
@@ -152,9 +188,9 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
                 const uint32_t pointer_id = code[1];
                 const uint32_t type_id = code[2];
 
-                struct shader_type_internal *type = ngli_darray_expand_to(internal.types, pointer_id);
-                type->index = type_id;
-                type->flag = (uint8_t)-1;
+                struct shadertypeinternal *pointer_type = ngli_darray_expand_to(internal.types, pointer_id);
+                pointer_type->flag = NGLI_SHADER_INDIRECTION;
+                pointer_type->index = type_id;
                 break;
             }
 
@@ -162,11 +198,11 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
             case 30: {
                 const uint32_t type_id = code[1];
 
-                struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
                 const uint8_t last_variable_index = ngli_darray_size(type->variables)-1;
                 const uint32_t member_type_id = code[2 + last_variable_index];
-                struct shader_type_internal *member_type = ngli_darray_expand_to(internal.types, member_type_id);
-                struct shader_variable_internal *variable = ngli_darray_get(type->variables, last_variable_index);
+                struct shadertypeinternal *member_type = ngli_darray_expand_to(internal.types, member_type_id);
+                struct shaderblockvariableinternal *variable = ngli_darray_get(type->variables, last_variable_index);
                 type->size = variable->offset + member_type->size;
                 break;
             }
@@ -178,23 +214,23 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
                 const uint32_t type_id = code[3];
 
                 switch (storage_type) {
-                    // Uniform
-                    case 2: {
-                        struct shader_type_internal *type = ngli_darray_expand_to(internal.types, pointer_id);
-                        type->flag = (uint8_t)-1;
-                        type->index = type_id;
+                    case 0:     // UniformConstant
+                    case 2: {   // Uniform
+                        struct shadertypeinternal *pointer_type = ngli_darray_expand_to(internal.types, pointer_id);
+                        pointer_type->flag = NGLI_SHADER_INDIRECTION;
+                        pointer_type->index = type_id;
                         break;
                     }
 
                     // PushConstant
                     case 9: {
-                        struct shader_type_internal *type = ngli_darray_expand_to(internal.types, pointer_id);
-                        type->flag = (uint8_t)-1;
-                        type->index = type_id;
+                        struct shadertypeinternal *pointer_type = ngli_darray_expand_to(internal.types, pointer_id);
+                        pointer_type->flag = NGLI_SHADER_INDIRECTION;
+                        pointer_type->index = type_id;
 
-                        struct shader_type_internal *block_type = ngli_darray_expand_to(internal.types, type_id);
-                        block_type->flag &= ~NGLI_SHADER_BLOCK_UNIFORM;
-                        block_type->flag |= NGLI_SHADER_BLOCK_CONSTANT;
+                        struct shadertypeinternal *block_type = ngli_darray_expand_to(internal.types, type_id);
+                        block_type->flag &= ~NGLI_SHADER_UNIFORM;
+                        block_type->flag |= NGLI_SHADER_CONSTANT;
                         break;
                     }
                 }
@@ -207,34 +243,35 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
                 const uint32_t type_id = code[2];
                 const uint32_t storage_type = code[3];
 
-                struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
+                struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
                 switch (storage_type) {
                     // Input
                     case 1: {
-                        type->flag |= NGLI_SHADER_ATTRIBUTE_INPUT;
+                        type->flag |= NGLI_SHADER_INPUT;
                         break;
                     }
 
+                    case 0:     // UniformConstant
                     case 2:     // Uniform
                     case 9: {   // PushConstant
-                        // indirection to proper structureu
+                        // indirection to proper structure
                         uint32_t block_id = pointer_id;
-                        struct shader_type_internal *block_type = NULL;
+                        struct shadertypeinternal *block_type = NULL;
                         do {
                             block_type = ngli_darray_expand_to(internal.types, block_id);
                             block_id = block_type->index;
-                        } while(block_type->flag == (uint8_t)-1);
+                        } while(block_type->flag == NGLI_SHADER_INDIRECTION);
 
                         type->variables = block_type->variables;
                         type->size = block_type->size;
                         type->flag = block_type->flag;
-                        *((uint32_t*)ngli_darray_add(internal.block_indices)) = type_id;
+                        *((uint32_t*)ngli_darray_add(internal.bindings)) = type_id;
                         break;
                     }
 
                     // Output
                     case 3: {
-                        type->flag |= NGLI_SHADER_ATTRIBUTE_OUTPUT;
+                        type->flag |= NGLI_SHADER_OUTPUT;
                         break;
                     }
                 }
@@ -248,32 +285,35 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
                 switch (decoration) {
                     // Block
                     case 2: {
-                        struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
-                        type->flag |= NGLI_SHADER_BLOCK_UNIFORM;
+                        struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
+                        type->flag |= NGLI_SHADER_BLOCK;
+                        type->flag |= NGLI_SHADER_UNIFORM;
                         break;
                     }
 
                     // BufferBlock
                     case 3: {
-                        struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
-                        type->flag |= NGLI_SHADER_BLOCK_STORAGE;
+                        struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
+                        type->flag |= NGLI_SHADER_BLOCK;
+                        type->flag |= NGLI_SHADER_STORAGE;
                         break;
                     }
 
                     // Location
                     case 30: {
                         const uint32_t index = code[3];
-                        struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
+                        struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
                         type->index = index;
+                        type->flag |= NGLI_SHADER_ATTRIBUTE;
 
-                        *((uint32_t*)ngli_darray_add(internal.attribute_indices)) = type_id;
+                        *((uint32_t*)ngli_darray_add(internal.attributes)) = type_id;
                         break;
                     }
 
                     // Binding
                     case 33: {
                         const uint32_t index = code[3];
-                        struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
+                        struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
                         type->index = index;
                         break;
                     }
@@ -287,12 +327,14 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
                 const uint32_t variable_index = code[2];
                 const uint32_t decoration = code[3];
 
-                // Offset
-                if(decoration == 35) {
-                    const uint32_t offset = code[4];
-                    struct shader_type_internal *type = ngli_darray_expand_to(internal.types, type_id);
-                    struct shader_variable_internal *variable = ngli_darray_get(type->variables, variable_index);
-                    variable->offset = offset;
+                switch(decoration) {
+                    // Offset
+                    case 35: {
+                        const uint32_t offset = code[4];
+                        struct shadertypeinternal *type = ngli_darray_expand_to(internal.types, type_id);
+                        struct shaderblockvariableinternal *variable = ngli_darray_get(type->variables, variable_index);
+                        variable->offset = offset;
+                    }
                 }
                 break;
             }
@@ -302,85 +344,108 @@ struct shader_reflection* ngli_spirv_create_reflection(const uint32_t *code, siz
     }
 
     // items number
-    const uint32_t nb_attributes = ngli_darray_size(internal.attribute_indices);
-    const uint32_t nb_blocks = ngli_darray_size(internal.block_indices);
+    const uint32_t nb_attributes = ngli_darray_size(internal.attributes);
+    const uint32_t nb_bindings = ngli_darray_size(internal.bindings);
 
     // allocate shader_reflection memory
-    uint32_t attribute_bytes = nb_attributes * sizeof(struct shader_attribute_reflection);
-    uint32_t block_bytes = nb_blocks * sizeof(struct shader_block_reflection);
-    for (uint32_t i = 0; i < nb_blocks; i++) {
-        const uint32_t block_type_index = *(uint32_t *)ngli_darray_get(internal.block_indices, i);
-        struct shader_type_internal *type = ngli_darray_get(internal.types, block_type_index);
-        if (type->variables)
-            block_bytes += ngli_darray_size(type->variables) * sizeof(struct shader_variable_reflection);
+    uint32_t attribute_bytes = nb_attributes * sizeof(struct shaderattribute);
+    uint32_t bindings_bytes = 0;
+    for (uint32_t i = 0; i < nb_bindings; i++) {
+        const uint32_t bindings_type_index = *(uint32_t *)ngli_darray_get(internal.bindings, i);
+        struct shadertypeinternal *type = ngli_darray_get(internal.types, bindings_type_index);
+        if ((type->flag & NGLI_SHADER_BLOCK)) {
+            bindings_bytes += sizeof(struct shaderblock);
+            if (type->variables)
+                bindings_bytes += ngli_darray_size(type->variables) * sizeof(struct shaderblockvariable);
+        }
+        else if ((type->flag & NGLI_SHADER_TEXTURE)) {
+            bindings_bytes += sizeof(struct shadertexture);
+        }
     }
-    uint32_t reflection_bytes = sizeof(struct shader_reflection) + attribute_bytes + block_bytes;
+    uint32_t reflection_bytes = sizeof(struct shaderdesc) + attribute_bytes + bindings_bytes;
     uint8_t *allocation = malloc(reflection_bytes);
 
-    // initialize shader_reflection
-    struct shader_reflection *reflection = (struct shader_reflection*)allocation;
-    reflection->attributes = nb_attributes ? ngli_hmap_create() : NULL;
-    reflection->blocks = nb_blocks ? ngli_hmap_create() : NULL;
+    // initialize shaderdesc
+    struct shaderdesc *desc = (struct shaderdesc*)allocation;
+    desc->attributes = nb_attributes ? ngli_hmap_create() : NULL;
+    desc->bindings = nb_bindings ? ngli_hmap_create() : NULL;
 
     // initialize attributes
-    struct shader_attribute_reflection *attribute = (struct shader_attribute_reflection*)(allocation + sizeof(struct shader_reflection));
+    struct shaderattribute *attribute = (struct shaderattribute*)(allocation + sizeof(struct shaderdesc));
     for (uint32_t i = 0; i < nb_attributes; i++) {
-        const uint32_t attribute_type_index = *(uint32_t *)ngli_darray_get(internal.attribute_indices, i);
-        struct shader_type_internal *type = ngli_darray_get(internal.types, attribute_type_index);
+        const uint32_t attribute_type_index = *(uint32_t *)ngli_darray_get(internal.attributes, i);
+        struct shadertypeinternal *type = ngli_darray_get(internal.types, attribute_type_index);
 
         attribute->index = type->index;
         attribute->flag = type->flag;
-        ngli_hmap_set(reflection->attributes, type->name, attribute++);
+        ngli_hmap_set(desc->attributes, type->name, attribute++);
     }
-    ngli_darray_freep(&internal.attribute_indices);
+    ngli_darray_freep(&internal.attributes);
 
-    // initialize blocks
-    struct shader_block_reflection *block = (struct shader_block_reflection*)attribute;
-    for (uint32_t i = 0; i < nb_blocks; i++) {
-        const uint32_t block_type_index = *(uint32_t *)ngli_darray_get(internal.block_indices, i);
-        struct shader_type_internal *type_internal = ngli_darray_get(internal.types, block_type_index);
+    // initialize bindings
+    struct shaderbinding *binding = (struct shaderbinding*)attribute;
+    for (uint32_t i = 0; i < nb_bindings; i++) {
+        const uint32_t bindings_type_index = *(uint32_t *)ngli_darray_get(internal.bindings, i);
+        struct shadertypeinternal *type = ngli_darray_get(internal.types, bindings_type_index);
+        binding->index = type->index;
+        binding->flag = type->flag;
 
-        block->flag = type_internal->flag;
-        block->index = type_internal->index;
-        block->size = type_internal->size;
-        block->variables = NULL;
-        struct shader_variable_reflection *variable = (struct shader_variable_reflection*)(((uint8_t*)block) + sizeof(struct shader_block_reflection));
-        if (type_internal->variables)
-        {
-            block->variables = ngli_hmap_create();
-            const uint32_t nb_variables = ngli_darray_size(type_internal->variables);
-            for (uint32_t j = 0; j < nb_variables; j++) {
-                struct shader_variable_internal *variable_internal = ngli_darray_get(type_internal->variables, j);
-                variable->offset = variable_internal->offset;
-                variable->flag = 0;
-                ngli_hmap_set(block->variables, variable_internal->name, variable++);
+        // initialize block
+        uint32_t binding_byte = 0;
+        if ((type->flag & NGLI_SHADER_BLOCK)) {
+            struct shaderblock *block = (struct shaderblock *)binding;
+            block->size = type->size;
+
+            binding_byte += sizeof(struct shaderblock);
+            if (type->variables) {
+                block->variables = ngli_hmap_create();
+                struct shaderblockvariable *variable = (struct shaderblockvariable *)(((uint8_t*)binding) + binding_byte);
+                const uint32_t nb_variables = ngli_darray_size(type->variables);
+                for (uint32_t j = 0; j < nb_variables; j++) {
+                    struct shaderblockvariableinternal *v = ngli_darray_get(type->variables, j);
+                    variable->offset = v->offset;
+                    ngli_hmap_set(block->variables, v->name, variable++);
+                }
+                ngli_darray_freep(&type->variables);
+                binding_byte += nb_variables * sizeof(struct shaderblockvariable);
             }
-            ngli_darray_freep(&type_internal->variables);
         }
-        ngli_hmap_set(reflection->blocks, type_internal->name, block);
-        block = (struct shader_block_reflection*)variable;
+        // initialize texture
+        else if ((type->flag & NGLI_SHADER_TEXTURE)) {
+            struct shadertexture *texture = (struct shadertexture *)binding;
+            texture->format = 0;
+            binding_byte += sizeof(struct shadertexture);
+        }
+        else
+            ngli_assert(0);
+
+        ngli_hmap_set(desc->bindings, type->name, binding);
+        binding = (struct shaderbinding*)(((uint8_t*)binding) + binding_byte);
     }
-    ngli_darray_freep(&internal.block_indices);
+    ngli_darray_freep(&internal.bindings);
     ngli_darray_freep(&internal.types);
 
-    return reflection;
+    return desc;
 }
 
-void ngli_spirv_destroy_reflection(struct shader_reflection **reflection)
+void ngli_shaderdesc_freep(struct shaderdesc **desc)
 {
-    struct shader_reflection *s = *reflection;
+    struct shaderdesc *s = *desc;
 
     if (!s)
         return;
 
     ngli_hmap_freep(&s->attributes);
-
-    if (s->blocks) {
+    if (s->bindings) {
         const struct hmap_entry *entry = NULL;
-        while ((entry = ngli_hmap_next(s->blocks, entry))) {
-            struct shader_block_reflection *block = entry->data;
-            ngli_hmap_freep(&block->variables);
+        while ((entry = ngli_hmap_next(s->bindings, entry))) {
+            struct shaderbinding *binding = entry->data;
+            if((binding->flag) & NGLI_SHADER_BLOCK) {
+                struct shaderblock *block = (struct shaderblock *)binding;
+                ngli_hmap_freep(&block->variables);
+            }
         }
+        ngli_hmap_freep(&s->bindings);
     }
     free(s);
     s = NULL;

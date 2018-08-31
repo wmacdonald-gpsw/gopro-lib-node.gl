@@ -559,14 +559,16 @@ int ngli_pipeline_init(struct ngl_node *node)
     uint32_t uniform_buffer_size = 0;
     for (uint8_t i = 0; i < NGLI_SHADER_TYPE_COUNT; i++) {
         struct shader *current_shader = &program->shaders[i];
-        if (!current_shader->reflection || !current_shader->reflection->blocks)
+        if (!current_shader->reflection || !current_shader->reflection->bindings)
             continue;
 
-        const struct hmap_entry *block_entry = NULL;
-        while ((block_entry = ngli_hmap_next(current_shader->reflection->blocks, block_entry))) {
-            struct shader_block_reflection *block = block_entry->data;
-            if ((block->flag & NGLI_SHADER_BLOCK_UNIFORM)) 
+        const struct hmap_entry *binding_entry = NULL;
+        while ((binding_entry = ngli_hmap_next(current_shader->reflection->bindings, binding_entry))) {
+            const struct shaderbinding *binding = binding_entry->data;
+            if ((binding->flag & NGLI_SHADER_UNIFORM)) {
+                const struct shaderblock *block = binding_entry->data;
                 uniform_buffer_size += NGLI_ALIGN(block->size, 32);
+            }
         }
     }
     if (uniform_buffer_size) {
@@ -587,15 +589,16 @@ int ngli_pipeline_init(struct ngl_node *node)
         uint32_t uniform_block_offset = 0;
         for (uint8_t i = 0; i < NGLI_SHADER_TYPE_COUNT; i++) {
             struct shader *current_shader = &program->shaders[i];
-            if (!current_shader->reflection || !current_shader->reflection->blocks)
+            if (!current_shader->reflection || !current_shader->reflection->bindings)
                 continue;
 
-            const struct hmap_entry *block_entry = NULL;
-            while ((block_entry = ngli_hmap_next(current_shader->reflection->blocks, block_entry))) {
-                struct shader_block_reflection *block = block_entry->data;
-                if ((block->flag & NGLI_SHADER_BLOCK_UNIFORM)) {
+            const struct hmap_entry *binding_entry = NULL;
+            while ((binding_entry = ngli_hmap_next(current_shader->reflection->bindings, binding_entry))) {
+                struct shaderbinding *binding = binding_entry->data;
+                if ((binding->flag & NGLI_SHADER_UNIFORM)) {
+                    const struct shaderblock *block = binding_entry->data;
                     uint32_t aligned_size = NGLI_ALIGN(block->size, 32);
-                    ngli_renderer_bind_buffer(vk, program, s->uniform_rendererbuffer, uniform_block_offset, aligned_size, block->index, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+                    ngli_renderer_bind_buffer(vk, program, s->uniform_rendererbuffer, uniform_block_offset, aligned_size, binding->index, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 
                     // TODO: map static uniforms directly
                     // fill uniform pairs
@@ -610,7 +613,7 @@ int ngli_pipeline_init(struct ngl_node *node)
                             if (ret < 0)
                                 return ret;
 
-                            const struct shader_variable_reflection *variable = variable_entry->data;
+                            const struct shaderblockvariable *variable = variable_entry->data;
                             intptr_t uniform_offset = uniform_block_offset + variable->offset;
                             struct nodeprograminfopair pair = {
                                 .node = unode,
@@ -622,9 +625,9 @@ int ngli_pipeline_init(struct ngl_node *node)
                     }
                     uniform_block_offset += aligned_size;
                 }
-                else if ((block->flag & NGLI_SHADER_BLOCK_STORAGE)) {
+                else if ((binding->flag & NGLI_SHADER_STORAGE)) {
                     if (s->buffers) {
-                        struct ngl_node *bnode = ngli_hmap_get(s->buffers, block_entry->key);
+                        struct ngl_node *bnode = ngli_hmap_get(s->buffers, binding_entry->key);
                         if (!bnode)
                             continue;
 
@@ -635,7 +638,7 @@ int ngli_pipeline_init(struct ngl_node *node)
                         if (ret < 0)
                             return ret;
 
-                        ngli_renderer_bind_buffer(vk, program, buffer->renderer_handle, 0, buffer->renderer_handle->size, block->index, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+                        ngli_renderer_bind_buffer(vk, program, buffer->renderer_handle, 0, buffer->renderer_handle->size, binding->index, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
                     }
                 }
             }

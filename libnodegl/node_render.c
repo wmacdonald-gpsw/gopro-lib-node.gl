@@ -291,7 +291,7 @@ static int init_vertex_input_attrib_desc(struct ngl_node *node)
 
     for (int i = 0; i < s->nb_attribute_pairs; i++) {
         const struct nodeprograminfopair *pair = &s->attribute_pairs[i];
-        const struct shader_attribute_reflection *info = pair->program_info;
+        const struct shaderattribute *info = pair->program_info;
         struct buffer *buffer = pair->node->priv_data;
 
         VkVertexInputBindingDescription bind_desc = {

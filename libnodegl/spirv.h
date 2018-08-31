@@ -25,37 +25,51 @@
 #include <stdint.h>
 
 enum {
-    NGLI_SHADER_ATTRIBUTE_INPUT      = 1 << 0,
-    NGLI_SHADER_ATTRIBUTE_OUTPUT     = 1 << 1,
-    NGLI_SHADER_BLOCK_UNIFORM        = 1 << 2,
-    NGLI_SHADER_BLOCK_CONSTANT       = 1 << 3,
-    NGLI_SHADER_BLOCK_STORAGE        = 1 << 4,
-    NGLI_SHADER_BLOCK_DYNAMIC        = 1 << 5,
+    NGLI_SHADER_INPUT           = 1 << 0,
+    NGLI_SHADER_OUTPUT          = 1 << 1,
+    NGLI_SHADER_ATTRIBUTE       = 1 << 2,
+    NGLI_SHADER_BLOCK           = 1 << 3,
+    NGLI_SHADER_CONSTANT        = 1 << 4,
+    NGLI_SHADER_SAMPLER         = 1 << 5,
+    NGLI_SHADER_TEXTURE         = 1 << 6,
+    NGLI_SHADER_UNIFORM         = 1 << 7,
+    NGLI_SHADER_STORAGE         = 1 << 8,
+    NGLI_SHADER_DYNAMIC         = 1 << 9,
+    NGLI_SHADER_INDIRECTION     = 1 << 10
 };
 
-struct shader_attribute_reflection {
+struct shaderattribute {
+    uint16_t flag;
     uint8_t index;
-    uint8_t flag;
 };
 
-struct shader_block_reflection {
-    struct hmap *variables;
+struct shaderbinding {
+    uint16_t flag;
+    uint8_t index;
+};
+
+struct shaderblock {
+    struct shaderbinding binding;
     uint16_t size;
-    uint8_t index;
-    uint8_t flag;
+    struct hmap *variables;
 };
 
-struct shader_variable_reflection {
+struct shaderblockvariable {
     uint16_t offset;
-    uint8_t flag;
 };
 
-struct shader_reflection {
+struct shadertexture {
+    struct shaderbinding binding;
+    uint32_t format;
+};
+
+struct shaderdesc
+{
     struct hmap *attributes;
-    struct hmap *blocks;
+    struct hmap *bindings;
 };
 
-struct shader_reflection *ngli_spirv_create_reflection(const uint32_t *code, size_t size);
-void ngli_spirv_destroy_reflection(struct shader_reflection **reflection);
+struct shaderdesc *ngli_shaderdesc_create(const uint32_t *code, size_t size);
+void ngli_shaderdesc_freep(struct shaderdesc **desc);
 
 #endif

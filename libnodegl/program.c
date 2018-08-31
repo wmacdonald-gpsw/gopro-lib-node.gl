@@ -201,20 +201,22 @@ int ngli_program_init(struct ngl_node *node) {
             return -1;
 
         // reflect shader
-        current_shader->reflection = ngli_spirv_create_reflection((uint32_t*)current_shader->data, current_shader->data_size);
+        current_shader->reflection = ngli_shaderdesc_create((uint32_t*)current_shader->data, current_shader->data_size);
         if (!current_shader->reflection)
             return -1;
 
-        if (current_shader->reflection->blocks) {
-            const struct hmap_entry *block_entry = NULL;
-            while ((block_entry = ngli_hmap_next(current_shader->reflection->blocks, block_entry))) {
-                struct shader_block_reflection *block = block_entry->data;
-                if ((block->flag & NGLI_SHADER_BLOCK_CONSTANT))
+        if (current_shader->reflection->bindings) {
+            const struct hmap_entry *binding_entry = NULL;
+            while ((binding_entry = ngli_hmap_next(current_shader->reflection->bindings, binding_entry))) {
+                const struct shaderbinding *binding = binding_entry->data;
+                if ((binding->flag & NGLI_SHADER_CONSTANT)) {
+                    const struct shaderblock *block = binding_entry->data;
                     add_shader_constant(constants, block->size, constant_stages[i]);
-                else if ((block->flag & NGLI_SHADER_BLOCK_UNIFORM))
-                    add_shader_binding(bindings, block->index, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-                else if ((block->flag & NGLI_SHADER_BLOCK_STORAGE))
-                    add_shader_binding(bindings, block->index, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+                }
+                else if ((binding->flag & NGLI_SHADER_UNIFORM))
+                    add_shader_binding(bindings, binding->index, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+                else if ((binding->flag & NGLI_SHADER_STORAGE))
+                    add_shader_binding(bindings, binding->index, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
             };
         }
     }
@@ -379,7 +381,7 @@ void ngli_program_uninit(struct ngl_node *node) {
             continue;
 
         if (current_shader->reflection)
-            ngli_spirv_destroy_reflection(&current_shader->reflection);
+            ngli_shaderdesc_freep(&current_shader->reflection);
 
         if (current_shader->module != VK_NULL_HANDLE)
             ngli_renderer_destroy_shader(vk, current_shader->module);
