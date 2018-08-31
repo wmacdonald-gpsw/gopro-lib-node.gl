@@ -755,3 +755,26 @@ def vkparticles(cfg, nb_particles=2048, nb_thread=16):
     group.add_children(compute, render)
 
     return Camera(group)
+
+@scene(size={'type': 'range', 'range': [0, 1.5], 'unit_base': 1000})
+def vktriangle(cfg, size=0.5):
+    b = size * math.sqrt(3) / 2.0
+    c = size * 1/2.
+    cfg.duration = 3.
+    cfg.aspect_ratio = (1, 1)
+
+    colors_data = array.array('f', [0.0, 0.0, 1.0, 1.0,
+                                    0.0, 1.0, 0.0, 1.0,
+                                    1.0, 0.0, 0.0, 1.0])
+    colors_buffer = BufferVec4(data=colors_data)
+
+    triangle = Triangle((-b, -c, 0), (b, -c, 0), (0, size, 0))
+    p = Program(fragment=cfg.get_frag('vktriangle'), vertex=cfg.get_vert('vktriangle'))
+    node = Render(triangle, p)
+    node.update_attributes(edge_color=colors_buffer)
+    animkf = [AnimKeyFrameFloat(0, 0),
+              AnimKeyFrameFloat(  cfg.duration/3.,   -360/3., 'exp_in_out'),
+              AnimKeyFrameFloat(2*cfg.duration/3., -2*360/3., 'exp_in_out'),
+              AnimKeyFrameFloat(  cfg.duration,      -360,    'exp_in_out')]
+    node = Rotate(node, anim=AnimatedFloat(animkf))
+    return node
