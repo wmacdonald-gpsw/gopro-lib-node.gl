@@ -301,6 +301,10 @@ static void update_one_uniform(const struct ngl_node *node, void* buffer)
            *(int *)buffer = u->ival;
             break;
         }
+        case NGL_NODE_UNIFORMQUAT: {
+            memcpy(buffer, u->vector, 4 * sizeof(float));
+            break;
+        }
         case NGL_NODE_UNIFORMMAT4: {
             memcpy(buffer, u->matrix, sizeof(u->matrix));
             break;
