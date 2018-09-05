@@ -30,6 +30,7 @@
 #include "math_utils.h"
 #include "nodegl.h"
 #include "nodes.h"
+#include "renderer.h"
 #include "utils.h"
 
 #define TEXTURES_TYPES_LIST (const int[]){NGL_NODE_TEXTURE2D,       \
@@ -178,14 +179,18 @@ static void compute_draw(struct ngl_node *node)
     if (ret != VK_SUCCESS)
         return;
 
+    ngli_renderer_marker_begin(vk, "compute-bind pipeline");
     vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->vkpipeline);
+    // ngli_renderer_marker_end(vk);
 
     if ((program->flag & NGLI_PROGRAM_BUFFER_ATTACHED)) {
         vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, program->layout,
                                 0, 1, &program->descriptor_sets[vk->frame_index], 0, NULL);
     }
 
+    // ngli_renderer_marker_begin(vk, "compute-dispatch");
     vkCmdDispatch(cmd_buf, s->nb_group_x, s->nb_group_y, s->nb_group_z);
+    ngli_renderer_marker_end(vk);
 
     ret = vkEndCommandBuffer(cmd_buf);
     if (ret != VK_SUCCESS)

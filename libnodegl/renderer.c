@@ -151,3 +151,97 @@ void ngli_renderer_destroy_shader(struct glcontext *glcontext, void *handle)
 {
     vkDestroyShaderModule(glcontext->device, handle, NULL);
 }
+
+void ngli_renderer_start_time(struct glcontext *glcontext)
+{
+    // TODO: could be build once
+    VkCommandBuffer command_buffer = glcontext->query_cmd_buf[2*glcontext->frame_index];
+    VkCommandBufferBeginInfo command_buffer_begin_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+    };
+
+    VkResult ret = vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
+    if (ret != VK_SUCCESS)
+        return;
+    vkCmdResetQueryPool(command_buffer, glcontext->query_pool, 0, 1);
+
+    vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, glcontext->query_pool, 0);
+    ret = vkEndCommandBuffer(command_buffer);
+    if (ret != VK_SUCCESS)
+        return;
+
+    glcontext->command_buffers[glcontext->nb_command_buffers++] = command_buffer;
+}
+
+void ngli_renderer_stop_time(struct glcontext *glcontext)
+{
+    // TODO: could be build once
+    VkCommandBuffer command_buffer = glcontext->query_cmd_buf[2*glcontext->frame_index+1];
+    VkCommandBufferBeginInfo command_buffer_begin_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+    };
+
+    VkResult ret = vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info);
+    if (ret != VK_SUCCESS)
+        return;
+    vkCmdResetQueryPool(command_buffer, glcontext->query_pool, 1, 1);
+
+    vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, glcontext->query_pool, 1);
+    ret = vkEndCommandBuffer(command_buffer);
+    if (ret != VK_SUCCESS)
+        return;
+    
+    glcontext->command_buffers[glcontext->nb_command_buffers++] = command_buffer;
+}
+
+uint64_t ngli_renderer_get_time(struct glcontext *glcontext)
+{
+    uint64_t timestamps[2];
+    vkGetQueryPoolResults(glcontext->device,
+			glcontext->query_pool,
+			0,
+			2,
+            sizeof(timestamps),
+			timestamps,
+			sizeof(uint64_t),
+            VK_QUERY_RESULT_64_BIT);
+
+    return timestamps[1] - timestamps[0];
+}
+
+void ngli_renderer_marker_begin(struct glcontext *glcontext, const char *name)
+{
+    static PFN_vkCmdDebugMarkerBeginEXT vkCmdDebugMarkerBegin = NULL;
+    if(!vkCmdDebugMarkerBegin) {
+        void *function = vkGetInstanceProcAddr(glcontext->instance, "vkCmdDebugMarkerBeginEXT");
+        vkCmdDebugMarkerBegin = function;
+    }
+
+    if (vkCmdDebugMarkerBegin) {
+        VkDebugMarkerMarkerInfoEXT debug_marker_info = {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_MARKER_MARKER_INFO_EXT,
+            .pMarkerName = name,
+        };
+
+        VkCommandBuffer command_buffer = glcontext->command_buffers[glcontext->nb_command_buffers];
+        if (command_buffer != VK_NULL_HANDLE)
+            vkCmdDebugMarkerBegin(command_buffer, &debug_marker_info);
+    }
+}
+
+void ngli_renderer_marker_end(struct glcontext *glcontext)
+{
+    static PFN_vkCmdDebugMarkerEndEXT vkCmdDebugMarkerEnd = NULL;
+    if(!vkCmdDebugMarkerEnd) {
+        void *function = vkGetInstanceProcAddr(glcontext->instance, "vkCmdDebugMarkerEndEXT");
+        vkCmdDebugMarkerEnd = function;
+    }
+    
+    if (vkCmdDebugMarkerEnd) {
+        VkCommandBuffer command_buffer = glcontext->command_buffers[glcontext->nb_command_buffers];
+        if (command_buffer != VK_NULL_HANDLE)
+            vkCmdDebugMarkerEnd(command_buffer);
+    }
+}

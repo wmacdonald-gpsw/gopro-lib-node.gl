@@ -98,6 +98,9 @@ struct glcontext {
     VkCommandPool command_pool;
     VkCommandBuffer *clear_cmd_buf;
 
+    VkQueryPool query_pool;
+    VkCommandBuffer *query_cmd_buf;
+
     // final command buffers queue
     VkCommandBuffer command_buffers[64]; // FIXME
     int nb_command_buffers;

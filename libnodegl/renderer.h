@@ -40,4 +40,11 @@ void ngli_renderer_bind_buffer(struct glcontext *glcontext, struct program *p, s
 void *ngli_renderer_map_buffer(struct glcontext *glcontext, struct rendererbuffer* handle);
 void ngli_renderer_unmap_buffer(struct glcontext *glcontext, struct rendererbuffer* handle);
 
+// debug
+void ngli_renderer_start_time(struct glcontext *glcontext);
+void ngli_renderer_stop_time(struct glcontext *glcontext);
+uint64_t ngli_renderer_get_time(struct glcontext *glcontext);
+void ngli_renderer_marker_begin(struct glcontext *glcontext, const char *name);
+void ngli_renderer_marker_end(struct glcontext *glcontext);
+
 #endif

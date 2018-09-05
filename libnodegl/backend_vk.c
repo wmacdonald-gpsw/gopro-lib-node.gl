@@ -67,6 +67,9 @@ static const VkApplicationInfo app_info = {
 
 static const char *my_device_extension_names[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+#if ENABLE_DEBUG
+    VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+#endif
 };
 
 static const char *vk_res2str(VkResult res)
@@ -234,9 +237,9 @@ static VkResult probe_vulkan_extensions(struct glcontext *vk)
     if (!ext_props)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     vkEnumerateInstanceExtensionProperties(NULL, &ext_count, ext_props);
-    LOG(DEBUG, "Vulkan extensions available:");
+    LOG(INFO, "Vulkan extensions available:");
     for (uint32_t i = 0; i < ext_count; i++) {
-        LOG(DEBUG, "  %d/%d: %s v%d", i+1, ext_count,
+        LOG(INFO, "  %d/%d: %s v%d", i+1, ext_count,
                ext_props[i].extensionName, ext_props[i].specVersion);
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
         if (!strcmp(ext_props[i].extensionName, VK_KHR_XLIB_SURFACE_EXTENSION_NAME))
@@ -282,7 +285,7 @@ static const char *platform_ext_names[] = {
 static VkResult create_vulkan_instance(struct glcontext *vk)
 {
     const char *surface_ext_name = platform_ext_names[vk->config.platform];
-    const char *my_extension_names[2 + ENABLE_DEBUG] = {
+    const char *my_extension_names[] = {
         VK_KHR_SURFACE_EXTENSION_NAME,
         surface_ext_name,
 #if ENABLE_DEBUG
@@ -736,6 +739,36 @@ static VkResult create_clear_command_buffers(struct glcontext *vk)
     return VK_SUCCESS;
 }
 
+static VkResult create_query_pool(struct glcontext *vk)
+{
+    VkQueryPoolCreateInfo query_pool_create_info = {
+        .sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+        .queryType = VK_QUERY_TYPE_TIMESTAMP,
+        .queryCount = 2,
+    };
+
+    VkResult ret = vkCreateQueryPool(vk->device, &query_pool_create_info, NULL, &vk->query_pool);
+    return ret;
+}
+
+static VkResult create_query_command_buffers(struct glcontext *vk)
+{
+    vk->query_cmd_buf = calloc(2*vk->nb_frames, sizeof(*vk->query_cmd_buf));
+    if (!vk->query_cmd_buf)
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    VkCommandBufferAllocateInfo command_buffers_allocate_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = vk->command_pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 2*vk->nb_frames,
+    };
+
+    VkResult ret = vkAllocateCommandBuffers(vk->device, &command_buffers_allocate_info,
+                                            vk->query_cmd_buf);
+    return ret;
+}
+
 static VkResult create_semaphores(struct glcontext *vk)
 {
     VkResult ret;
@@ -875,6 +908,8 @@ static int vulkan_init(struct glcontext *vk, uintptr_t display, uintptr_t window
         (ret = create_swapchain_framebuffers(vk)) != VK_SUCCESS ||
         (ret = create_command_pool(vk)) != VK_SUCCESS ||
         (ret = create_clear_command_buffers(vk)) != VK_SUCCESS ||
+        (ret = create_query_pool(vk)) != VK_SUCCESS ||
+        (ret = create_query_command_buffers(vk)) != VK_SUCCESS ||
 
         (ret = create_semaphores(vk)) != VK_SUCCESS) {
         //vulkan_uninit(vk);
@@ -938,6 +973,10 @@ static void cleanup_swapchain(struct glcontext *vk)
                          vk->nb_frames, vk->clear_cmd_buf);
     free(vk->clear_cmd_buf);
 
+    vkFreeCommandBuffers(vk->device, vk->command_pool,
+                         vk->nb_frames, vk->query_cmd_buf);
+    free(vk->query_cmd_buf);
+
     vkDestroyRenderPass(vk->device, vk->render_pass, NULL);
 
     for (uint32_t i = 0; i < vk->nb_frames; i++)
@@ -979,6 +1018,7 @@ static void vulkan_uninit(struct glcontext *vk)
     cleanup_swapchain(vk);
 
     vkDestroyCommandPool(vk->device, vk->command_pool, NULL);
+    vkDestroyQueryPool(vk->device, vk->query_pool, NULL);
 
     free(vk->swapchain_support.formats);
     free(vk->swapchain_support.present_modes);

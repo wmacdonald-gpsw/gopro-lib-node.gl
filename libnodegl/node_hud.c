@@ -31,6 +31,7 @@
 
 #include "nodegl.h"
 #include "nodes.h"
+#include "renderer.h"
 #include "log.h"
 
 #define OFFSET(x) offsetof(struct hud, x)
@@ -406,6 +407,7 @@ static int64_t report_op(struct hud *s, int op)
     /* Print the text line to the picture buffer */
     char buf[DATA_NBCHAR_W+1];
     snprintf(buf, sizeof(buf), "%s %5" PRId64 "usec", ops[op].label, t);
+    printf("%s\n", buf);
     uint8_t *line = s->data_buf + op * FONT_H * DATA_W * 4;
     for (int i = 0; buf[i]; i++) {
         uint8_t *p = line + i * FONT_W * 4;
@@ -435,23 +437,18 @@ static int hud_update(struct ngl_node *node, double t)
     struct hud *s = node->priv_data;
     struct ngl_node *child = s->child;
 
+#ifndef VULKAN_BACKEND
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *gl = ctx->glcontext;
+#endif
+
     s->need_refresh = fabs(t - s->last_refresh_time) >= s->refresh_rate_interval;
     if (s->need_refresh)
         s->last_refresh_time = t;
 
     ngli_node_transfer_matrices(child, node);
 
-#ifdef VULKAN_BACKEND
-    // TODO
-    int64_t update_start = ngli_gettime();
-    ret = ngli_node_update(child, t);
-    int64_t update_end = ngli_gettime();
-
-    register_time(s, OP_UPDATE_CPU, update_end - update_start);
-#else
-    struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *gl = ctx->glcontext;
-
+#ifndef VULKAN_BACKEND
     int timer_active = ctx->timer_active;
     if (timer_active) {
         LOG(WARNING, "GPU timings will not be available when using multiple HUD "
@@ -460,21 +457,23 @@ static int hud_update(struct ngl_node *node, double t)
         ctx->timer_active = 1;
         s->glBeginQuery(gl, GL_TIME_ELAPSED, s->query);
     }
+#endif
 
     int64_t update_start = ngli_gettime();
     ret = ngli_node_update(child, t);
     int64_t update_end = ngli_gettime();
 
-    GLuint64 gpu_tupdate = 0;
+    uint64_t gpu_tupdate = 0;
+#ifndef VULKAN_BACKEND
     if (!timer_active) {
         s->glEndQuery(gl, GL_TIME_ELAPSED);
         s->glGetQueryObjectui64v(gl, s->query, GL_QUERY_RESULT, &gpu_tupdate);
         ctx->timer_active = 0;
     }
+#endif
 
     register_time(s, OP_UPDATE_CPU, update_end - update_start);
     register_time(s, OP_UPDATE_GPU, gpu_tupdate);
-#endif
 
     return ret;
 }
@@ -482,29 +481,36 @@ static int hud_update(struct ngl_node *node, double t)
 static void hud_draw(struct ngl_node *node)
 {
     struct hud *s = node->priv_data;
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *glcontext = ctx->glcontext;
 
 #ifdef VULKAN_BACKEND
-    // TODO
+    ngli_renderer_start_time(glcontext);
 #else
-    struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *gl = ctx->glcontext;
-
     int timer_active = ctx->timer_active;
     if (!timer_active) {
         ctx->timer_active = 1;
         s->glBeginQuery(gl, GL_TIME_ELAPSED, s->query);
     }
+#endif
 
     const int64_t draw_start = ngli_gettime();
     ngli_node_draw(s->child);
     const int64_t draw_end = ngli_gettime();
 
-    GLuint64 gpu_tdraw = 0;
+    uint64_t gpu_tdraw = 0;
+#ifdef VULKAN_BACKEND
+    ngli_renderer_stop_time(glcontext);
+
+    // TODO: user should pass be statistics object to avoid error when nothing has been send yet
+    gpu_tdraw = ngli_renderer_get_time(glcontext);
+#else
     if (!timer_active) {
         s->glEndQuery(gl, GL_TIME_ELAPSED);
         s->glGetQueryObjectui64v(gl, s->query, GL_QUERY_RESULT, &gpu_tdraw);
         ctx->timer_active = 0;
     }
+#endif
 
     int64_t cpu_tdraw = draw_end - draw_start;
     register_time(s, OP_DRAW_CPU, cpu_tdraw);
@@ -518,7 +524,6 @@ static void hud_draw(struct ngl_node *node)
     const int64_t gpu_tupdate = gpu_up->times[last_gpu_up_pos];
     register_time(s, OP_TOTAL_CPU, cpu_tdraw + cpu_tupdate);
     register_time(s, OP_TOTAL_GPU, gpu_tdraw + gpu_tupdate);
-#endif
 
     if (s->need_refresh) {
         reset_buf(s);
