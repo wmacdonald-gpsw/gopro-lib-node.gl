@@ -468,11 +468,9 @@ struct pipeline {
 
     VkPipeline vkpipeline;
     VkCommandBuffer *command_buffers;
-    int nb_command_buffers; // XXX drop for vk->nb_framebuffers
 
     VkResult (*create_func)(struct ngl_node *node, VkPipeline *pipeline_dstp);
     int queue_family_id;
-    VkCommandPool command_pool;
 
     struct rendererbuffer *uniform_rendererbuffer;
 #else

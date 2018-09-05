@@ -43,12 +43,12 @@ struct rendererbuffer *ngli_renderer_create_buffer(struct glcontext *glcontext, 
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
 
-    handle->buffers = calloc(glcontext->nb_framebuffers, sizeof(*handle->buffers));
+    handle->buffers = calloc(glcontext->nb_frames, sizeof(*handle->buffers));
     if (!handle->buffers)
         return NULL;
 
     VkResult vkret = VK_SUCCESS;
-    for (uint32_t i = 0; i < glcontext->nb_framebuffers; i++){
+    for (uint32_t i = 0; i < glcontext->nb_frames; i++){
         vkret = vkCreateBuffer(glcontext->device, &buffer_create_info, NULL, &handle->buffers[i]);
         if (vkret != VK_SUCCESS)
             return NULL;
@@ -69,7 +69,7 @@ struct rendererbuffer *ngli_renderer_create_buffer(struct glcontext *glcontext, 
 
     VkMemoryAllocateInfo memory_allocate_info = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = glcontext->nb_framebuffers * aligned_size,
+        .allocationSize = glcontext->nb_frames * aligned_size,
         .memoryTypeIndex = memory_type_index,
     };
 
@@ -77,7 +77,7 @@ struct rendererbuffer *ngli_renderer_create_buffer(struct glcontext *glcontext, 
     if (vkret != VK_SUCCESS)
         return NULL;
 
-    for (uint32_t i = 0; i < glcontext->nb_framebuffers; i++){
+    for (uint32_t i = 0; i < glcontext->nb_frames; i++){
         vkret = vkBindBufferMemory(glcontext->device, handle->buffers[i], handle->allocation, i * aligned_size);
         if (vkret != VK_SUCCESS)
             return NULL;
@@ -88,7 +88,7 @@ struct rendererbuffer *ngli_renderer_create_buffer(struct glcontext *glcontext, 
 
 void ngli_renderer_destroy_buffer(struct glcontext *glcontext, struct rendererbuffer *handle)
 {
-    for (uint32_t i = 0; i < glcontext->nb_framebuffers; i++)
+    for (uint32_t i = 0; i < glcontext->nb_frames; i++)
         vkDestroyBuffer(glcontext->device, handle->buffers[i], NULL);
     free(handle->buffers);
 
@@ -99,7 +99,7 @@ void ngli_renderer_destroy_buffer(struct glcontext *glcontext, struct rendererbu
 
 void ngli_renderer_bind_buffer(struct glcontext *glcontext, struct program *p, struct rendererbuffer *rb, uint32_t offset, uint32_t size, uint32_t index, uint32_t type)
 {
-    for (uint32_t i = 0; i < glcontext->nb_framebuffers; i++){
+    for (uint32_t i = 0; i < glcontext->nb_frames; i++){
         VkDescriptorBufferInfo descriptor_buffer_info = {
             .buffer = rb->buffers[i],
             .offset = offset,
@@ -123,7 +123,7 @@ void ngli_renderer_bind_buffer(struct glcontext *glcontext, struct program *p, s
 void *ngli_renderer_map_buffer(struct glcontext *glcontext, struct rendererbuffer* handle)
 {
     void *mapped_memory;
-    vkMapMemory(glcontext->device, handle->allocation, glcontext->img_index * handle->size, handle->size, 0, &mapped_memory);
+    vkMapMemory(glcontext->device, handle->allocation, glcontext->frame_index * handle->size, handle->size, 0, &mapped_memory);
     return mapped_memory;
 }
 

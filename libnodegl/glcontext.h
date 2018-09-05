@@ -81,25 +81,22 @@ struct glcontext {
     VkSurfaceFormatKHR surface_format;
     VkPresentModeKHR present_mode;
     VkSwapchainKHR swapchain;
+    uint32_t nb_frames;
+    // TODO: renderertexture should contains VkImage / n VkImageView
     VkImage *images;
-    uint32_t nb_images;
     VkImageView *image_views;
-    uint32_t nb_image_views;
+    // TODO: rendererrendertarget should contains VkFramebuffer
     VkFramebuffer *framebuffers;
-    int nb_framebuffers;
     VkSemaphore *sem_img_avail;
     VkSemaphore *sem_render_finished;
     VkFence *fences;
     VkStructureType surface_create_type;
 
-    uint32_t img_index;
+    uint32_t frame_index;
+    uint32_t swapchain_image_index;
 
-    int nb_in_flight_frames;
-    int current_frame;
-
-    VkCommandPool clear_pool;
+    VkCommandPool command_pool;
     VkCommandBuffer *clear_cmd_buf;
-    int nb_clear_cmd_buf;
 
     // final command buffers queue
     VkCommandBuffer command_buffers[64]; // FIXME

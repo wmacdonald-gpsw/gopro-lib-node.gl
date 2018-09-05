@@ -255,7 +255,7 @@ int ngli_program_init(struct ngl_node *node) {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .poolSizeCount = NGLI_RENDERER_BUFFER_TYPE_COUNT,
             .pPoolSizes = descriptor_pool_sizes,
-            .maxSets = vk->nb_framebuffers,
+            .maxSets = vk->nb_frames,
         };
 
         // TODO: descriptor tool should be shared for all nodes
@@ -275,19 +275,19 @@ int ngli_program_init(struct ngl_node *node) {
         if (vkret != VK_SUCCESS)
             goto fail;
 
-        VkDescriptorSetLayout *descriptor_set_layouts = calloc(vk->nb_framebuffers, sizeof(*descriptor_set_layouts));
-        for (uint32_t i = 0; i < vk->nb_framebuffers; i++) {
+        VkDescriptorSetLayout *descriptor_set_layouts = calloc(vk->nb_frames, sizeof(*descriptor_set_layouts));
+        for (uint32_t i = 0; i < vk->nb_frames; i++) {
             descriptor_set_layouts[i] = s->descriptor_set_layout;
         }
 
         VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = s->descriptor_pool,
-            .descriptorSetCount = vk->nb_framebuffers,
+            .descriptorSetCount = vk->nb_frames,
             .pSetLayouts = descriptor_set_layouts,
         };
 
-        s->descriptor_sets = calloc(vk->nb_framebuffers, sizeof(*s->descriptor_sets));
+        s->descriptor_sets = calloc(vk->nb_frames, sizeof(*s->descriptor_sets));
         vkret = vkAllocateDescriptorSets(vk->device, &descriptor_set_allocate_info, s->descriptor_sets);
         free(descriptor_set_layouts);
         if (vkret != VK_SUCCESS)

@@ -538,9 +538,6 @@ static VkResult create_vulkan_device(struct glcontext *vk)
 
 static VkResult create_swapchain(struct glcontext *vk)
 {
-    // set maximum in flight frames
-    vk->nb_in_flight_frames = 2;
-
     // re-query the swapchain to get current extent
     VkResult ret = query_swapchain_support(&vk->swapchain_support, vk->surface, vk->physical_device);
     if (ret != VK_SUCCESS)
@@ -593,22 +590,21 @@ static VkResult create_swapchain(struct glcontext *vk)
 // XXX: re-entrant
 static VkResult create_swapchain_images(struct glcontext *vk)
 {
-    vkGetSwapchainImagesKHR(vk->device, vk->swapchain, &vk->nb_images, NULL);
-    VkImage *imgs = realloc(vk->images, vk->nb_images * sizeof(*vk->images));
+    vkGetSwapchainImagesKHR(vk->device, vk->swapchain, &vk->nb_frames, NULL);
+    VkImage *imgs = realloc(vk->images, vk->nb_frames * sizeof(*vk->images));
     if (!imgs)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     vk->images = imgs;
-    vkGetSwapchainImagesKHR(vk->device, vk->swapchain, &vk->nb_images, vk->images);
+    vkGetSwapchainImagesKHR(vk->device, vk->swapchain, &vk->nb_frames, vk->images);
     return VK_SUCCESS;
 }
 
 static VkResult create_swapchain_image_views(struct glcontext *vk)
 {
-    vk->nb_image_views = vk->nb_images;
-    vk->image_views = calloc(vk->nb_image_views, sizeof(*vk->image_views));
+    vk->image_views = calloc(vk->nb_frames, sizeof(*vk->image_views));
     if (!vk->image_views)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
-    for (uint32_t i = 0; i < vk->nb_images; i++) {
+    for (uint32_t i = 0; i < vk->nb_frames; i++) {
         VkImageViewCreateInfo image_view_create_info = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = vk->images[i],
@@ -681,11 +677,10 @@ static VkResult create_render_pass(struct glcontext *vk)
 
 static VkResult create_swapchain_framebuffers(struct glcontext *vk)
 {
-    vk->nb_framebuffers = vk->nb_image_views;
-    vk->framebuffers = calloc(vk->nb_framebuffers, sizeof(*vk->framebuffers));
+    vk->framebuffers = calloc(vk->nb_frames, sizeof(*vk->framebuffers));
     if (!vk->framebuffers)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
-    for (uint32_t i = 0; i < vk->nb_framebuffers; i++) {
+    for (uint32_t i = 0; i < vk->nb_frames; i++) {
         //VkImageView attachments[] = {
         //    vk->image_views[i]
         //};
@@ -709,7 +704,7 @@ static VkResult create_swapchain_framebuffers(struct glcontext *vk)
     return VK_SUCCESS;
 }
 
-static VkResult create_clear_command_pool(struct glcontext *vk)
+static VkResult create_command_pool(struct glcontext *vk)
 {
     VkCommandPoolCreateInfo command_pool_create_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -717,21 +712,20 @@ static VkResult create_clear_command_pool(struct glcontext *vk)
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, // XXX
     };
 
-    return vkCreateCommandPool(vk->device, &command_pool_create_info, NULL, &vk->clear_pool);
+    return vkCreateCommandPool(vk->device, &command_pool_create_info, NULL, &vk->command_pool);
 }
 
 static VkResult create_clear_command_buffers(struct glcontext *vk)
 {
-    vk->nb_clear_cmd_buf = vk->nb_framebuffers;
-    vk->clear_cmd_buf = calloc(vk->nb_clear_cmd_buf, sizeof(*vk->clear_cmd_buf));
+    vk->clear_cmd_buf = calloc(vk->nb_frames, sizeof(*vk->clear_cmd_buf));
     if (!vk->clear_cmd_buf)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     VkCommandBufferAllocateInfo command_buffers_allocate_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = vk->clear_pool,
+        .commandPool = vk->command_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = vk->nb_clear_cmd_buf,
+        .commandBufferCount = vk->nb_frames,
     };
 
     VkResult ret = vkAllocateCommandBuffers(vk->device, &command_buffers_allocate_info,
@@ -746,15 +740,15 @@ static VkResult create_semaphores(struct glcontext *vk)
 {
     VkResult ret;
 
-    vk->sem_img_avail = calloc(vk->nb_in_flight_frames, sizeof(VkSemaphore));
+    vk->sem_img_avail = calloc(vk->nb_frames, sizeof(VkSemaphore));
     if (!vk->sem_img_avail)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    vk->sem_render_finished = calloc(vk->nb_in_flight_frames, sizeof(VkSemaphore));
+    vk->sem_render_finished = calloc(vk->nb_frames, sizeof(VkSemaphore));
     if (!vk->sem_render_finished)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-    vk->fences = calloc(vk->nb_in_flight_frames, sizeof(VkFence));
+    vk->fences = calloc(vk->nb_frames, sizeof(VkFence));
     if (!vk->fences)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -767,7 +761,7 @@ static VkResult create_semaphores(struct glcontext *vk)
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
 
-    for (int i = 0; i < vk->nb_in_flight_frames; i++) {
+    for (int i = 0; i < vk->nb_frames; i++) {
         if ((ret = vkCreateSemaphore(vk->device, &semaphore_create_info, NULL,
                                     &vk->sem_img_avail[i])) != VK_SUCCESS ||
             (ret = vkCreateSemaphore(vk->device, &semaphore_create_info, NULL,
@@ -879,7 +873,7 @@ static int vulkan_init(struct glcontext *vk, uintptr_t display, uintptr_t window
         (ret = create_swapchain_image_views(vk)) != VK_SUCCESS ||
         (ret = create_render_pass(vk)) != VK_SUCCESS ||
         (ret = create_swapchain_framebuffers(vk)) != VK_SUCCESS ||
-        (ret = create_clear_command_pool(vk)) != VK_SUCCESS ||
+        (ret = create_command_pool(vk)) != VK_SUCCESS ||
         (ret = create_clear_command_buffers(vk)) != VK_SUCCESS ||
 
         (ret = create_semaphores(vk)) != VK_SUCCESS) {
@@ -892,8 +886,8 @@ static int vulkan_init(struct glcontext *vk, uintptr_t display, uintptr_t window
 
 static void vulkan_swap_buffers(struct glcontext *vk)
 {
-    VkSemaphore wait_sem[] = {vk->sem_img_avail[vk->current_frame]};
-    VkSemaphore sig_sem[] = {vk->sem_render_finished[vk->current_frame]};
+    VkSemaphore wait_sem[] = {vk->sem_img_avail[vk->frame_index]};
+    VkSemaphore sig_sem[] = {vk->sem_render_finished[vk->frame_index]};
     VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
     VkSubmitInfo submit_info = {
@@ -909,7 +903,7 @@ static void vulkan_swap_buffers(struct glcontext *vk)
 
     //LOG(ERROR, "submit %d command buffers", vk->nb_command_buffers);
 
-    VkResult ret = vkQueueSubmit(vk->graphic_queue, 1, &submit_info, vk->fences[vk->current_frame]);
+    VkResult ret = vkQueueSubmit(vk->graphic_queue, 1, &submit_info, vk->fences[vk->swapchain_image_index]);
     vk->nb_command_buffers = 0;
     if (ret != VK_SUCCESS)
         LOG(ERROR, "submit failed");
@@ -920,7 +914,7 @@ static void vulkan_swap_buffers(struct glcontext *vk)
         .pWaitSemaphores = sig_sem,
         .swapchainCount = 1,
         .pSwapchains = &vk->swapchain,
-        .pImageIndices = &vk->img_index,
+        .pImageIndices = &vk->swapchain_image_index,
     };
 
     ret = vkQueuePresentKHR(vk->present_queue, &present_info);
@@ -932,21 +926,21 @@ static void vulkan_swap_buffers(struct glcontext *vk)
         LOG(ERROR, "failed to present image %s", vk_res2str(ret));
     }
 
-    vk->current_frame = (vk->current_frame + 1) % vk->nb_in_flight_frames;
+    vk->frame_index = (vk->frame_index + 1) % vk->nb_frames;
 }
 
 static void cleanup_swapchain(struct glcontext *vk)
 {
-    for (uint32_t i = 0; i < vk->nb_framebuffers; i++)
+    for (uint32_t i = 0; i < vk->nb_frames; i++)
         vkDestroyFramebuffer(vk->device, vk->framebuffers[i], NULL);
 
-    vkFreeCommandBuffers(vk->device, vk->clear_pool,
-                         vk->nb_clear_cmd_buf, vk->clear_cmd_buf);
+    vkFreeCommandBuffers(vk->device, vk->command_pool,
+                         vk->nb_frames, vk->clear_cmd_buf);
     free(vk->clear_cmd_buf);
 
     vkDestroyRenderPass(vk->device, vk->render_pass, NULL);
 
-    for (uint32_t i = 0; i < vk->nb_image_views; i++)
+    for (uint32_t i = 0; i < vk->nb_frames; i++)
         vkDestroyImageView(vk->device, vk->image_views[i], NULL);
 
     vkDestroySwapchainKHR(vk->device, vk->swapchain, NULL);
@@ -973,7 +967,8 @@ static int reset_swapchain(struct glcontext *vk)
 
 static void vulkan_uninit(struct glcontext *vk)
 {
-    for (int i = 0; i < vk->nb_in_flight_frames; i++) {
+    vkDeviceWaitIdle(vk->device);
+    for (int i = 0; i < vk->nb_frames; i++) {
         vkDestroySemaphore(vk->device, vk->sem_render_finished[i], NULL);
         vkDestroySemaphore(vk->device, vk->sem_img_avail[i], NULL);
         vkDestroyFence(vk->device, vk->fences[i], NULL);
@@ -981,10 +976,9 @@ static void vulkan_uninit(struct glcontext *vk)
     free(vk->sem_render_finished);
     free(vk->sem_img_avail);
     free(vk->fences);
-
     cleanup_swapchain(vk);
 
-    vkDestroyCommandPool(vk->device, vk->clear_pool, NULL);
+    vkDestroyCommandPool(vk->device, vk->command_pool, NULL);
 
     free(vk->swapchain_support.formats);
     free(vk->swapchain_support.present_modes);
@@ -1038,7 +1032,7 @@ static int vk_clear(struct glcontext *vk)
     };
 
 
-    VkCommandBuffer cmd_buf = vk->clear_cmd_buf[vk->img_index];
+    VkCommandBuffer cmd_buf = vk->clear_cmd_buf[vk->frame_index];
 
     VkCommandBufferBeginInfo command_buffer_begin_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -1065,7 +1059,7 @@ static int vk_clear(struct glcontext *vk)
         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = vk->images[vk->img_index],
+        .image = vk->images[vk->swapchain_image_index],
         .subresourceRange = sub_ressource_range,
     };
 
@@ -1077,12 +1071,12 @@ static int vk_clear(struct glcontext *vk)
         .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = vk->images[vk->img_index],
+        .image = vk->images[vk->swapchain_image_index],
         .subresourceRange = sub_ressource_range,
     };
 
     vkCmdPipelineBarrier(cmd_buf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &present_to_clear_barrier);
-    vkCmdClearColorImage(cmd_buf, vk->images[vk->img_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &sub_ressource_range);
+    vkCmdClearColorImage(cmd_buf, vk->images[vk->swapchain_image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &sub_ressource_range);
     vkCmdPipelineBarrier(cmd_buf, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &clear_to_present_barrier);
 
     ret = vkEndCommandBuffer(cmd_buf);
@@ -1099,11 +1093,13 @@ static int vk_pre_draw(struct ngl_ctx *s)
     int ret;
     struct glcontext *vk = s->glcontext;
 
-    vkWaitForFences(vk->device, 1, &vk->fences[vk->current_frame], VK_TRUE, UINT64_MAX);
-    vkResetFences(vk->device, 1, &vk->fences[vk->current_frame]);
+    vkWaitForFences(vk->device, 1, &vk->fences[vk->swapchain_image_index], VK_TRUE, UINT64_MAX);
 
     VkResult vkret = vkAcquireNextImageKHR(vk->device, vk->swapchain, UINT64_MAX,
-                                           vk->sem_img_avail[vk->current_frame], NULL, &vk->img_index);
+                                           vk->sem_img_avail[vk->frame_index], NULL, &vk->swapchain_image_index);
+
+    vkResetFences(vk->device, 1, &vk->fences[vk->swapchain_image_index]);
+
 
     if (vkret == VK_ERROR_OUT_OF_DATE_KHR) {
         LOG(ERROR, "ACQUIRE OUT OF DATE");

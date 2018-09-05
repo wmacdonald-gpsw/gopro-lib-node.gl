@@ -499,26 +499,12 @@ static void destroy_pipeline(struct ngl_node *node)
     struct pipeline *s = get_pipeline(node);
 
     vkDeviceWaitIdle(vk->device);
-
-    vkFreeCommandBuffers(vk->device, s->command_pool,
-                         s->nb_command_buffers, s->command_buffers);
-    free(s->command_buffers);
+    if (s->command_buffers) {
+        vkFreeCommandBuffers(vk->device, vk->command_pool,
+                            vk->nb_frames, s->command_buffers);
+        free(s->command_buffers);
+    }
     vkDestroyPipeline(vk->device, s->vkpipeline, NULL);
-}
-
-static VkResult create_command_pool(struct ngl_node *node, int family_id)
-{
-    struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *vk = ctx->glcontext;
-    struct pipeline *s = get_pipeline(node);
-
-    VkCommandPoolCreateInfo command_pool_create_info = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex = family_id,
-        .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, // XXX
-    };
-
-    return vkCreateCommandPool(vk->device, &command_pool_create_info, NULL, &s->command_pool);
 }
 
 static VkResult create_command_buffers(struct ngl_node *node)
@@ -527,16 +513,15 @@ static VkResult create_command_buffers(struct ngl_node *node)
     struct glcontext *vk = ctx->glcontext;
     struct pipeline *s = get_pipeline(node);
 
-    s->nb_command_buffers = vk->nb_framebuffers;
-    s->command_buffers = calloc(s->nb_command_buffers, sizeof(*s->command_buffers));
+    s->command_buffers = calloc(vk->nb_frames, sizeof(*s->command_buffers));
     if (!s->command_buffers)
         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
     VkCommandBufferAllocateInfo command_buffers_allocate_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = s->command_pool,
+        .commandPool = vk->command_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = s->nb_command_buffers,
+        .commandBufferCount = vk->nb_frames,
     };
 
     VkResult ret = vkAllocateCommandBuffers(vk->device, &command_buffers_allocate_info,
@@ -562,9 +547,6 @@ int ngli_pipeline_init(struct ngl_node *node)
     /* Uniforms */
 #ifdef VULKAN_BACKEND
     struct glcontext *vk = ctx->glcontext;
-    VkResult vkret = create_command_pool(node, s->queue_family_id);
-    if (vkret != VK_SUCCESS)
-        return -1;
 
     // compute uniform buffer size needed
     // VkDeviceSize          minUniformBufferOffsetAlignment;
@@ -641,7 +623,7 @@ int ngli_pipeline_init(struct ngl_node *node)
                                 s->uniform_pairs[s->nb_uniform_pairs++] = pair;
                             }
                             else {
-                                for (uint32_t j = 0; j < vk->nb_framebuffers; j++)
+                                for (uint32_t j = 0; j < vk->nb_frames; j++)
                                     update_one_uniform(unode, uniform_memory + (j*s->uniform_rendererbuffer->size) + uniform_offset);
                             }
                         }
@@ -860,8 +842,6 @@ void ngli_pipeline_uninit(struct ngl_node *node)
 
     if (s->uniform_rendererbuffer)
         ngli_renderer_destroy_buffer(vk, s->uniform_rendererbuffer);
-
-    vkDestroyCommandPool(vk->device, s->command_pool, NULL);
 #else
     free(s->buffer_ids);
 #endif

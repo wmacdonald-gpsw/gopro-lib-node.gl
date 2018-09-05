@@ -167,7 +167,7 @@ static void compute_draw(struct ngl_node *node)
 
     ngli_pipeline_upload_data(node);
 
-    VkCommandBuffer cmd_buf = pipeline->command_buffers[vk->img_index];
+    VkCommandBuffer cmd_buf = pipeline->command_buffers[vk->frame_index];
 
     VkCommandBufferBeginInfo command_buffer_begin_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -182,7 +182,7 @@ static void compute_draw(struct ngl_node *node)
 
     if ((program->flag & NGLI_PROGRAM_BUFFER_ATTACHED)) {
         vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, program->layout,
-                                0, 1, &program->descriptor_sets[vk->img_index], 0, NULL);
+                                0, 1, &program->descriptor_sets[vk->frame_index], 0, NULL);
     }
 
     vkCmdDispatch(cmd_buf, s->nb_group_x, s->nb_group_y, s->nb_group_z);

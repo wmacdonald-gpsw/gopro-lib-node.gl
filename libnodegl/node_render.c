@@ -564,7 +564,7 @@ static void render_draw(struct ngl_node *node)
 
     ngli_pipeline_upload_data(node);
 
-    VkCommandBuffer cmd_buf = pipeline->command_buffers[vk->img_index];
+    VkCommandBuffer cmd_buf = pipeline->command_buffers[vk->frame_index];
 
     VkCommandBufferBeginInfo command_buffer_begin_info = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -592,7 +592,7 @@ static void render_draw(struct ngl_node *node)
     VkRenderPassBeginInfo render_pass_begin_info = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
         .renderPass = vk->render_pass,
-        .framebuffer = vk->framebuffers[vk->img_index],
+        .framebuffer = vk->framebuffers[vk->swapchain_image_index],
         .renderArea = {
             .extent = vk->extent,
         },
@@ -629,7 +629,7 @@ static void render_draw(struct ngl_node *node)
 
     if ((program->flag & NGLI_PROGRAM_BUFFER_ATTACHED)) {
         vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, program->layout,
-                                0, 1, &program->descriptor_sets[vk->img_index], 0, NULL);
+                                0, 1, &program->descriptor_sets[vk->frame_index], 0, NULL);
     }
 
     vkCmdDrawIndexed(cmd_buf, indices_buffer->count, 1, 0, 0, 0);
