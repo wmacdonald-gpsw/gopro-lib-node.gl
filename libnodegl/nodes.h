@@ -63,7 +63,8 @@ struct ngl_ctx {
 
     /* Worker-only fields */
     struct glcontext *glcontext;
-    struct glstate glstate;
+    struct glstate current_glstate;
+    struct glstate pending_glstate;
     struct ngl_node *scene;
     struct ngl_config config;
     int timer_active;
@@ -136,7 +137,7 @@ struct graphicconfig {
     int cull_face;
     int cull_face_mode;
 
-    struct glstate states[2];
+    struct glstate state;
 };
 
 struct camera {

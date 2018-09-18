@@ -259,6 +259,8 @@ static void rtt_draw(struct ngl_node *node)
 
     struct rtt *s = node->priv_data;
 
+    ngli_honor_pending_glstate(ctx);
+
     GLuint framebuffer_id = 0;
     ngli_glGetIntegerv(gl, GL_FRAMEBUFFER_BINDING, (GLint *)&framebuffer_id);
 

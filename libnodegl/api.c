@@ -108,7 +108,8 @@ static int cmd_configure(struct ngl_ctx *s, void *arg)
     if (ret < 0)
         return ret;
 
-    ngli_glstate_probe(s->glcontext, &s->glstate);
+    ngli_glstate_probe(s->glcontext, &s->current_glstate);
+    s->pending_glstate = s->current_glstate;
 
     const int *viewport = config->viewport;
     if (viewport[2] > 0 && viewport[3] > 0)
@@ -192,6 +193,7 @@ static int cmd_draw(struct ngl_ctx *s, void *arg)
     if (s->scene) {
         LOG(DEBUG, "draw scene %s @ t=%f", s->scene->name, t);
         ngli_node_draw(s->scene);
+        ngli_honor_pending_glstate(s);
     }
 end:
     if (ret == 0 && ngli_glcontext_check_gl_error(gl, __FUNCTION__))

@@ -404,6 +404,8 @@ static void render_draw(struct ngl_node *node)
 
     struct render *s = node->priv_data;
 
+    ngli_honor_pending_glstate(ctx);
+
     const struct program *program = s->pipeline.program->priv_data;
     ngli_glUseProgram(gl, program->program_id);
 

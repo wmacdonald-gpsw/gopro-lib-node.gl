@@ -24,6 +24,7 @@
 #include "glcontext.h"
 #include "glincludes.h"
 #include "glstate.h"
+#include "nodes.h"
 
 void ngli_glstate_probe(const struct glcontext *gl, struct glstate *state)
 {
@@ -59,12 +60,15 @@ void ngli_glstate_probe(const struct glcontext *gl, struct glstate *state)
     ngli_glGetIntegerv(gl, GL_CULL_FACE_MODE,          (GLint *)&state->cull_face_mode);
 }
 
-void ngli_glstate_honor_state(const struct glcontext *gl,
-                              const struct glstate *next,
-                              const struct glstate *prev)
+int ngli_glstate_honor_state(const struct glcontext *gl,
+                             const struct glstate *next,
+                             const struct glstate *prev)
 {
+    int change = 0;
+
     /* Blend */
     if (next->blend != prev->blend) {
+        change = 1;
         if (next->blend)
             ngli_glEnable(gl, GL_BLEND);
         else
@@ -75,6 +79,7 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
         next->blend_src_factor   != prev->blend_src_factor   ||
         next->blend_dst_factor_a != prev->blend_dst_factor_a ||
         next->blend_src_factor_a != prev->blend_src_factor_a) {
+        change = 1;
         ngli_glBlendFuncSeparate(gl,
                                  next->blend_src_factor,
                                  next->blend_dst_factor,
@@ -84,6 +89,7 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
 
     if (next->blend_op   != prev->blend_op ||
         next->blend_op_a != prev->blend_op_a) {
+        change = 1;
         ngli_glBlendEquationSeparate(gl,
                                      next->blend_op,
                                      next->blend_op_a);
@@ -91,6 +97,7 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
 
     /* Color */
     if (memcmp(next->color_write_mask, prev->color_write_mask, sizeof(prev->color_write_mask))) {
+        change = 1;
         ngli_glColorMask(gl,
                          next->color_write_mask[0],
                          next->color_write_mask[1],
@@ -100,6 +107,7 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
 
     /* Depth */
     if (next->depth_test != prev->depth_test) {
+        change = 1;
         if (next->depth_test)
             ngli_glEnable(gl, GL_DEPTH_TEST);
         else
@@ -107,15 +115,18 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
     }
 
     if (next->depth_write_mask != prev->depth_write_mask) {
+        change = 1;
         ngli_glDepthMask(gl, next->depth_write_mask);
     }
 
     if (next->depth_func != prev->depth_func) {
+        change = 1;
         ngli_glDepthFunc(gl, next->depth_func);
     }
 
     /* Stencil */
     if (next->stencil_test != prev->stencil_test) {
+        change = 1;
         if (next->stencil_test)
             ngli_glEnable(gl, GL_STENCIL_TEST);
         else
@@ -123,6 +134,7 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
     }
 
     if (next->stencil_write_mask != prev->stencil_write_mask) {
+        change = 1;
         ngli_glStencilMask(gl, next->stencil_write_mask);
     }
 
@@ -138,6 +150,7 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
     if (next->stencil_fail       != prev->stencil_fail       ||
         next->stencil_depth_fail != prev->stencil_depth_fail ||
         next->stencil_depth_pass != prev->stencil_depth_pass) {
+        change = 1;
         ngli_glStencilOp(gl,
                          next->stencil_fail,
                          next->stencil_depth_fail,
@@ -146,6 +159,7 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
 
     /* Face Culling */
     if (next->cull_face != prev->cull_face) {
+        change = 1;
         if (next->cull_face)
             ngli_glEnable(gl, GL_CULL_FACE);
         else
@@ -153,6 +167,18 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
     }
 
     if (next->cull_face_mode != prev->cull_face_mode) {
+        change = 1;
         ngli_glCullFace(gl, next->cull_face_mode);
     }
+
+    return change;
+}
+
+void ngli_honor_pending_glstate(struct ngl_ctx *ctx)
+{
+    struct glcontext *gl = ctx->glcontext;
+
+    int ret = ngli_glstate_honor_state(gl, &ctx->pending_glstate, &ctx->current_glstate);
+    if (ret > 0)
+        ctx->current_glstate = ctx->pending_glstate;
 }
