@@ -146,6 +146,7 @@ static int cmd_draw(struct ngl_ctx *s, void *arg)
     if (s->scene) {
         LOG(DEBUG, "draw scene %s @ t=%f", s->scene->label, t);
         ngli_node_draw(s->scene);
+        ngli_honor_pending_glstate(s);
     }
 
 end:;
