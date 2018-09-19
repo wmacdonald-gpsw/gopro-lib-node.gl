@@ -166,6 +166,8 @@ Parameter | Ctor. | Type | Description | Default
 `filename` |  | [`string`](#parameter-types) | filename from which the buffer will be read, cannot be used with `data` | 
 `stride` |  | [`int`](#parameter-types) | stride of 1 element, in bytes | `0`
 `usage` |  | [`buffer_usage`](#buffer_usage-choices) | buffer usage hint | `static_draw`
+`anims` |  | [`NodeList`](#parameter-types) | per element animations (only supported by `BufferFloat`, `BufferVec2`, `BufferVec3`, `BufferVec4`) | 
+`transforms` |  | [`NodeList`](#parameter-types) ([Rotate](#rotate), [Transform](#transform), [Translate](#translate), [Scale](#scale), [Identity](#identity)) | per element transformation chain (only suppuported by `BufferMat4`) | 
 
 
 **Source**: [node_buffer.c](/libnodegl/node_buffer.c)

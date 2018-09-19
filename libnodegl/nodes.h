@@ -209,12 +209,19 @@ struct buffer {
     int data_comp;          // number of components per element
     int data_stride;        // stride of 1 element, in bytes
     GLenum usage;
+    struct ngl_node **anims;
+    int nb_anims;
+    struct ngl_node **transforms;
+    int nb_transforms;
     int data_format;        // any of NGLI_FORMAT_*
 
     /* animatedbuffer */
     struct ngl_node **animkf;
     int nb_animkf;
     int current_kf;
+
+    uint8_t *mat4_data;
+    float **mat4_transform_matrices;
 
     int fd;
 

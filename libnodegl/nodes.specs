@@ -105,6 +105,8 @@
         - [filename, string]
         - [stride, int]
         - [usage, select]
+        - [anims, NodeList]
+        - [transforms, NodeList]
 
 - BufferByte: _Buffer
 
