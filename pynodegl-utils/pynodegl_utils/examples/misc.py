@@ -17,9 +17,11 @@ from pynodegl import (
         BufferUBVec3,
         BufferUBVec4,
         BufferUIVec4,
+        BufferUShort,
         BufferVec2,
         BufferVec3,
         BufferVec4,
+        BufferMat4,
         Camera,
         Circle,
         Compute,
@@ -27,6 +29,7 @@ from pynodegl import (
         GraphicConfig,
         Geometry,
         Group,
+        Identity,
         Media,
         Program,
         Quad,
@@ -242,6 +245,42 @@ def cropboard(cfg, dim=15):
     )
     return render
 
+
+@scene(dim={'type': 'range', 'range': [1, 50]})
+def cropboard_with_instancing(cfg, dim=15):
+    m0 = cfg.medias[0]
+    random.seed(0)
+    cfg.duration = 10
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    kw = kh = 1. / dim
+    qw = qh = 2. / dim
+    tqs = []
+
+    p = Program()
+    m = Media(m0.filename)
+    t = Texture2D(data_src=m)
+
+    for y in range(dim):
+        for x in range(dim):
+            corner = (-1. + x*qw, 1. - (y+1.)*qh, 0)
+            q = Quad(corner, (qw, 0, 0), (0, qh, 0))
+
+            q.set_uv_corner(x*kw, 1. - (y+1.)*kh)
+            q.set_uv_width(kw, 0)
+            q.set_uv_height(0, kh)
+
+            render = Render(q, p)
+            render.update_textures(tex0=t)
+
+            startx = random.uniform(-2, 2)
+            starty = random.uniform(-2, 2)
+            trn_animkf = [AnimKeyFrameVec3(0, (startx, starty, 0)),
+                          AnimKeyFrameVec3(cfg.duration*2/3., (0, 0, 0), 'exp_out')]
+            trn = Translate(render, anim=AnimatedVec3(trn_animkf))
+            tqs.append(trn)
+
+    return Group(children=tqs)
 
 @scene(freq_precision={'type': 'range', 'range': [1, 10]},
        overlay={'type': 'range', 'unit_base': 100})
@@ -661,3 +700,227 @@ def mountain(cfg, ndim=3, nb_layers=7,
                           blend_src_factor_a='zero',
                           blend_dst_factor_a='one')
     return blend
+
+
+def postprocessing(cfg, group, node, vertex, fragment):
+    color_texture = Texture2D()
+    color_texture.set_height(720)
+    color_texture.set_width(720 * cfg.aspect_ratio_float)
+    color_texture.set_min_filter('linear')
+    color_texture.set_mag_filter('linear')
+
+    rtt = RenderToTexture(node, color_texture)
+    group.add_children(rtt)
+
+    program = Program()
+    if vertex:
+        program.set_vertex(vertex)
+    if fragment:
+        program.set_fragment(fragment)
+
+    quad = Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    render = Render(quad, program)
+    render.update_textures(tex0=color_texture)
+
+    camera = Camera(render)
+    camera.set_eye(0.0, 0.0, 2.0)
+    camera.set_center(0.0, 0.0, 0.0)
+    camera.set_up(0.0, 1.0, 0.0)
+    camera.set_orthographic(-1, 1, -1, 1)
+    camera.set_clipping(1.0, 10.0)
+
+    return camera
+
+
+@scene(count={'type': 'range', 'range': [1, 50000]})
+def cubes(cfg, count=5000):
+    cfg.duration = 10
+    random.seed(0)
+
+    cube_vertices_data = array.array('f', [
+        # front
+        -1.0, -1.0, 1.0,
+         1.0, -1.0, 1.0,
+         1.0,  1.0, 1.0,
+        -1.0,  1.0, 1.0,
+        # back
+        -1.0, -1.0, -1.0,
+         1.0, -1.0, -1.0,
+         1.0,  1.0, -1.0,
+        -1.0,  1.0, -1.0,
+    ])
+
+    cube_indices = array.array('H', [
+        # front
+        0, 1, 2,
+        2, 3, 0,
+        # right
+        1, 5, 6,
+        6, 2, 1,
+        # back
+        7, 6, 5,
+        5, 4, 7,
+        # left
+        4, 0, 3,
+        3, 7, 4,
+        # bottom
+        4, 5, 1,
+        1, 0, 4,
+        # top
+        3, 2, 6,
+        6, 7, 3,
+    ])
+
+    colors_data = array.array('f')
+    transforms_data = array.array('f')
+    for i in range(count):
+        transforms_data.extend([
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0,
+        ])
+        colors_data.extend([
+            random.uniform(0.2, 1.0),
+            random.uniform(0.2, 1.0),
+            random.uniform(0.2, 1.0),
+            1.0,
+        ])
+    colors = BufferVec4(data=colors_data)
+    transforms = BufferMat4(data=transforms_data)
+    intensities = BufferFloat(count=count)
+    for i in range(count):
+        animkf = (
+            AnimKeyFrameFloat(0,                 1.0),
+            AnimKeyFrameFloat(cfg.duration / 2., 3.0, 'exp_out'),
+            AnimKeyFrameFloat(cfg.duration,      1.0, 'exp_out')
+        )
+        intensities.add_anims(AnimatedFloat(animkf))
+
+        factor = random.uniform(0.02, 0.04)
+        transform = Scale(Identity(), factors=(
+            factor, factor, factor
+        ))
+
+        transform = Translate(transform, vector=(
+            random.uniform(-10.0, 10.0),
+            random.uniform(-0.5, 0.5),
+            random.uniform(-10.0, 10.0)
+        ))
+
+        factor = random.uniform(0.8, 1.6)
+        animkf = (
+            AnimKeyFrameVec3(0,                     (0, -15, 0)),
+            AnimKeyFrameVec3(cfg.duration * factor, (0,  15, 0)),
+        )
+
+        transform = Translate(transform, anim=AnimatedVec3(animkf))
+        transforms.add_transforms(transform)
+
+    cube_vertices = BufferVec3(data=cube_vertices_data)
+    cube_indices = BufferUShort(data=cube_indices)
+    cube = Geometry(
+        vertices=cube_vertices,
+        indices=cube_indices,
+    )
+
+    shader_version = '300 es' if cfg.backend == 'gles' else '330'
+    shader_header = '#version %s\n' % shader_version
+    vertex_shader = shader_header + get_vert('instanced_cube')
+    fragment_shader = shader_header + get_frag('instanced_cube')
+
+    program = Program(
+        vertex=vertex_shader,
+        fragment=fragment_shader
+    )
+    render = Render(cube, program, nb_instances=count)
+    render.update_instance_attributes(
+            instance_color=colors,
+            instance_transform=transforms,
+            instance_intensity=intensities,
+    )
+
+    config = GraphicConfig(render,
+                           depth_test=True)
+
+    camera = Camera(config)
+    camera.set_eye(0.0, 2.0, 4.0)
+    camera.set_center(0.0, 0.0, 0.0)
+    camera.set_up(0.0, 1.0, 0.0)
+    camera.set_perspective(45.0, cfg.aspect_ratio_float)
+    camera.set_clipping(1.0, 1000.0)
+
+    group = Group()
+    group.add_children(camera)
+
+    highlight_fragment = """#version 100
+precision highp float;
+uniform sampler2D tex0_sampler;
+varying vec2 var_tex0_coord;
+
+void main(void)
+{
+    vec4 color = texture2D(tex0_sampler, var_tex0_coord);
+    float luma = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
+    gl_FragColor = color * luma;
+}
+"""
+
+    blur_fragment = """#version 100
+precision highp float;
+uniform sampler2D tex0_sampler;
+varying vec2 var_tex0_coord;
+uniform vec2 tex0_dimensions;
+
+float normpdf(in float x, in float sigma) {
+    return 0.39894*exp(-0.5*x*x/(sigma*sigma))/sigma;
+}
+
+void main(void)
+{
+    // XXX: shader taken from shadertoy
+    // XXX: replace by a two-pass variant
+
+    vec3 c = texture2D(tex0_sampler, var_tex0_coord).rgb;
+    //declare stuff
+    const int mSize = 16;
+    const int kSize = (mSize-1)/2;
+    float kernel[mSize];
+    vec3 final_colour = vec3(0.0);
+
+    //create the 1-D kernel
+    float sigma = 7.0;
+    float Z = 0.0;
+    for (int j = 0; j <= kSize; ++j) {
+        kernel[kSize+j] = kernel[kSize-j] = normpdf(float(j), sigma);
+    }
+
+    //get the normalization factor (as the gaussian has been clamped)
+    for (int j = 0; j < mSize; j++) {
+        Z += kernel[j];
+    }
+
+    //read out the texels
+    for (int i=-kSize; i <= kSize; i++) {
+        for (int j=-kSize; j <= kSize; ++j) {
+            vec2 coord = var_tex0_coord + vec2(float(i), float(j)) / tex0_dimensions;
+            //final_colour += kernel[kSize+j]*kernel[kSize+i]*texture2D(tex0_sampler, (var_tex0_coord)).rgb;
+            final_colour += kernel[kSize+j]*kernel[kSize+i]*texture2D(tex0_sampler, coord).rgb;
+
+        }
+    }
+    gl_FragColor = vec4(final_colour/(Z*Z), 1.0);
+}
+"""
+
+    node = postprocessing(cfg, group, camera, None, None)
+    node = postprocessing(cfg, group, node, None, highlight_fragment)
+    node = postprocessing(cfg, group, node, None, blur_fragment)
+
+    config = GraphicConfig(node,
+                           blend=True,
+                           blend_src_factor='one',
+                           blend_dst_factor='one')
+
+    group.add_children(config)
+    return group
