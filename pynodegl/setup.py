@@ -394,6 +394,8 @@ cdef class %(class_name)s(%(parent_node)s):
                     cparam = field_name
                     if field_type in ('select', 'flags', 'string'):
                         ctype = 'const char *'
+                    elif field_type == 'pointer':
+                        ctype = 'uintptr_t'
                     elif field_type == 'Node':
                         ctype = '_Node'
                         cparam += '.ctx'

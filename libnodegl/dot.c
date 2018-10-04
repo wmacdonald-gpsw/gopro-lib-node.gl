@@ -86,6 +86,10 @@ static int should_print_par(uint8_t *priv, const struct node_param *par)
             const int *r = (int *)(priv + par->offset);
             return memcmp(r, par->def_value.r, sizeof(par->def_value.r));
         }
+        case PARAM_TYPE_PTR: {
+            void *ptr = *(void **)(priv + par->offset);
+            return ptr != par->def_value.p;
+        }
         case PARAM_TYPE_STR: {
             const char *s = *(const char **)(priv + par->offset);
             return s && (!par->def_value.str || strcmp(s, par->def_value.str));

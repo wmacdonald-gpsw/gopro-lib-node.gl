@@ -245,6 +245,9 @@ static int parse_param(struct darray *nodes_array, uint8_t *base_ptr,
             break;
         }
 
+        case PARAM_TYPE_PTR:
+            return -1;
+
         case PARAM_TYPE_STR: {
             len = strcspn(str, " \n");
             char *s = malloc(len + 1);
