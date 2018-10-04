@@ -51,6 +51,11 @@ const struct param_specs ngli_params_specs[] = {
         .size = sizeof(double),
         .desc = NGLI_DOCSTRING("Double-precision float"),
     },
+    [PARAM_TYPE_PTR] = {
+        .name = "pointer",
+        .size = sizeof(void *),
+        .desc = NGLI_DOCSTRING("Pointer"),
+    },
     [PARAM_TYPE_STR] = {
         .name = "string",
         .size = sizeof(char *),
@@ -275,6 +280,11 @@ void ngli_params_bstr_print_val(struct bstr *b, uint8_t *base_ptr, const struct 
                             m[12], m[13], m[14], m[15]);
             break;
         }
+        case PARAM_TYPE_PTR: {
+            const void *ptr = *(void **)(base_ptr + par->offset);
+            ngli_bstr_print(b, "%p", ptr);
+            break;
+        }
         case PARAM_TYPE_STR: {
             const char *s = *(const char **)(base_ptr + par->offset);
             if (!s)
@@ -369,6 +379,11 @@ int ngli_params_set(uint8_t *base_ptr, const struct node_param *par, va_list *ap
             double v = va_arg(*ap, double);
             LOG(VERBOSE, "set %s to %g", par->key, v);
             memcpy(dstp, &v, sizeof(v));
+            break;
+        }
+        case PARAM_TYPE_PTR: {
+            void *ptr = va_arg(*ap, void *);
+            memcpy(dstp, &ptr, sizeof(ptr));
             break;
         }
         case PARAM_TYPE_STR: {
@@ -558,6 +573,9 @@ int ngli_params_set_defaults(uint8_t *base_ptr, const struct node_param *params)
                 case PARAM_TYPE_VEC3:
                 case PARAM_TYPE_VEC4:
                     ngli_params_vset(base_ptr, par, par->def_value.vec);
+                    break;
+                case PARAM_TYPE_PTR:
+                    ngli_params_vset(base_ptr, par, par->def_value.p);
                     break;
                 case PARAM_TYPE_MAT4:
                     ngli_params_vset(base_ptr, par, par->def_value.mat);

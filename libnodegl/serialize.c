@@ -155,6 +155,13 @@ static void serialize_options(struct hmap *nlist,
                     ngli_bstr_print(b, " %s:%d/%d", p->key, r[0], r[1]);
                 break;
             }
+            case PARAM_TYPE_PTR: {
+                const void *ptr = *(void **)(priv + p->offset);
+                if (ptr != p->def_value.p)
+                    LOG(WARNING, "param '%s' of type pointer is not serializable", p->key);
+                ngli_assert(!constructor);
+                break;
+            }
             case PARAM_TYPE_STR: {
                 const char *s = *(char **)(priv + p->offset);
                 if (!s || (p->def_value.str && !strcmp(s, p->def_value.str)))
