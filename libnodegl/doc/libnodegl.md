@@ -219,6 +219,8 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 `pipe_fd` |  |  | [`int`](#parameter-types) | pipe file descriptor where the rendered raw RGBA buffer is written | `0`
 `pipe_width` |  |  | [`int`](#parameter-types) | width (in pixels) of the raw image buffer when using `pipe_fd` | `0`
 `pipe_height` |  |  | [`int`](#parameter-types) | height (in pixels) of the raw image buffer when using `pipe_fd` | `0`
+`read_callback` |  |  | [`pointer`](#parameter-types) | framebuffer read callback, must be of type `ngl_camera_read_cb` | 
+`read_data` |  |  | [`pointer`](#parameter-types) | user data passed to the `read_callback` | 
 
 
 **Source**: [node_camera.c](/libnodegl/node_camera.c)
@@ -642,6 +644,7 @@ Type | Description
 `bool` | Boolean (map to `int` in C)
 `i64` | 64-bit integer
 `double` | Double-precision float
+`pointer` | Pointer
 `string` | String
 `data` | Agnostic data buffer
 `vec2` | 2 single-precision floats

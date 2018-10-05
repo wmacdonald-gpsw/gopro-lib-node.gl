@@ -75,6 +75,10 @@ static const struct node_param camera_params[] = {
                    .desc=NGLI_DOCSTRING("width (in pixels) of the raw image buffer when using `pipe_fd`")},
     {"pipe_height", PARAM_TYPE_INT, OFFSET(pipe_height),
                     .desc=NGLI_DOCSTRING("height (in pixels) of the raw image buffer when using `pipe_fd`")},
+    {"read_callback", PARAM_TYPE_PTR, OFFSET(read_callback),
+                      .desc=NGLI_DOCSTRING("framebuffer read callback, must be of type `ngl_camera_read_cb`")},
+    {"read_data", PARAM_TYPE_PTR, OFFSET(read_data),
+                  .desc=NGLI_DOCSTRING("user data passed to the `read_callback`")},
     {NULL}
 };
 
@@ -109,7 +113,7 @@ static int camera_init(struct ngl_node *node)
     s->center_transform_matrix = ngli_get_last_transformation_matrix(s->center_transform);
     s->up_transform_matrix     = ngli_get_last_transformation_matrix(s->up_transform);
 
-    if (s->pipe_fd) {
+    if (s->pipe_fd || s->read_callback) {
         s->pipe_buf = calloc(4 /* RGBA */, s->pipe_width * s->pipe_height);
         if (!s->pipe_buf)
             return -1;
@@ -231,7 +235,7 @@ static void camera_draw(struct ngl_node *node)
     ngli_darray_pop(&ctx->modelview_matrix_stack);
     ngli_darray_pop(&ctx->projection_matrix_stack);
 
-    if (s->pipe_fd) {
+    if (s->pipe_fd || s->read_callback) {
         GLuint framebuffer_read_id;
         GLuint framebuffer_draw_id;
 
@@ -246,14 +250,19 @@ static void camera_draw(struct ngl_node *node)
             ngli_glBindFramebuffer(gl, GL_READ_FRAMEBUFFER, s->framebuffer_id);
         }
 
-        TRACE("write %dx%d buffer to FD=%d", s->pipe_width, s->pipe_height, s->pipe_fd);
         ngli_glReadPixels(gl, 0, 0, s->pipe_width, s->pipe_height, GL_RGBA, GL_UNSIGNED_BYTE, s->pipe_buf);
 
-        const int linesize = s->pipe_width * 4;
-        for (int i = 0; i < s->pipe_height; i++) {
-            const int line = s->pipe_height - i - 1;
-            const uint8_t *linedata = s->pipe_buf + line * linesize;
-            write(s->pipe_fd, linedata, linesize);
+        if (s->read_callback)
+            s->read_callback(s->pipe_buf, s->pipe_width, s->pipe_height, s->pipe_width, s->read_data);
+
+        if (s->pipe_fd) {
+            TRACE("write %dx%d buffer to FD=%d", s->pipe_width, s->pipe_height, s->pipe_fd);
+            const int linesize = s->pipe_width * 4;
+            for (int i = 0; i < s->pipe_height; i++) {
+                const int line = s->pipe_height - i - 1;
+                const uint8_t *linedata = s->pipe_buf + line * linesize;
+                write(s->pipe_fd, linedata, linesize);
+            }
         }
 
         if (s->samples > 0) {
