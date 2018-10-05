@@ -170,6 +170,9 @@ struct camera {
     int pipe_width, pipe_height;
     uint8_t *pipe_buf;
 
+    ngl_camera_read_cb read_callback;
+    void *read_data;
+
     int samples;
     GLuint framebuffer_id;
     GLuint colorbuffer_id;

@@ -179,6 +179,8 @@
         - [pipe_fd, int]
         - [pipe_width, int]
         - [pipe_height, int]
+        - [read_callback, pointer]
+        - [read_data, pointer]
 
 - Circle:
     optional:

@@ -426,6 +426,22 @@ void ngl_freep(struct ngl_ctx **ss);
 int ngl_anim_evaluate(struct ngl_node *anim, void *dst, double t);
 
 /**
+ * Camera
+ */
+
+/**
+ * Camera read callback prototype.
+ *
+ * @param data      vertically flipped frame data in RGBA
+ * @param width     frame width
+ * @param height    frame height
+ * @param linesize  frame linesize
+ * @param user_data user data provided to the camera node
+ *
+ */
+typedef void (*ngl_camera_read_cb)(uint8_t *data, int width, int height, int linesize, void *user_data);
+
+/**
  * Android
  */
 
