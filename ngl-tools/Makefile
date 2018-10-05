@@ -38,7 +38,7 @@ endif
 
 HAS_PYTHON := $(if $(shell pkg-config --exists python2 && echo 1),yes,no)
 
-TOOLS = player render
+TOOLS = player render cpu-processing
 ifeq ($(HAS_PYTHON),yes)
 TOOLS += python
 endif
@@ -50,6 +50,10 @@ all: $(TOOLS_BINS)
 ngl-player$(EXESUF): CFLAGS = $(PROJECT_CFLAGS) $(TOOLS_CFLAGS)
 ngl-player$(EXESUF): LDLIBS = $(PROJECT_LDLIBS) $(TOOLS_LDLIBS)
 ngl-player$(EXESUF): ngl-player.o player.o
+
+ngl-cpu-processing$(EXESUF): CFLAGS = $(PROJECT_CFLAGS) $(TOOLS_CFLAGS)
+ngl-cpu-processing$(EXESUF): LDLIBS = $(PROJECT_LDLIBS) $(TOOLS_LDLIBS)
+ngl-cpu-processing$(EXESUF): ngl-cpu-processing.o player.o
 
 ngl-render$(EXESUF): CFLAGS = $(PROJECT_CFLAGS) $(TOOLS_CFLAGS)
 ngl-render$(EXESUF): LDLIBS = $(PROJECT_LDLIBS) $(TOOLS_LDLIBS)
