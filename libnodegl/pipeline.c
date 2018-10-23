@@ -413,7 +413,8 @@ static int update_buffers(struct ngl_node *node)
         const struct ngl_node *bnode = pair->node;
         const struct buffer *buffer = bnode->priv_data;
         const struct bufferprograminfo *info = pair->program_info;
-        ngli_glBindBufferBase(gl, info->type, info->binding, buffer->buffer_id);
+
+        ngli_glBindBufferBase(gl, info->type, info->binding, buffer->graphic_buffer.id);
     }
 
     return 0;
@@ -584,10 +585,12 @@ int ngli_pipeline_init(struct ngl_node *node)
 
             struct ngl_node *bnode = entry->data;
             struct buffer *buffer = bnode->priv_data;
+            struct graphic_buffer *graphic_buffer = &buffer->graphic_buffer;
 
-            int ret = ngli_buffer_allocate(bnode);
+            int ret = ngli_graphic_buffer_allocate(gl, graphic_buffer, buffer->data_size, buffer->usage);
             if (ret < 0)
                 return ret;
+            ngli_graphic_buffer_upload(gl, graphic_buffer, buffer->data, buffer->data_size);
 
             if (info->type == GL_UNIFORM_BUFFER &&
                 buffer->data_size > gl->max_uniform_block_size) {
@@ -610,6 +613,8 @@ int ngli_pipeline_init(struct ngl_node *node)
 
 void ngli_pipeline_uninit(struct ngl_node *node)
 {
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *gl = ctx->glcontext;
     struct pipeline *s = get_pipeline(node);
 
     free(s->textureprograminfos);
@@ -617,7 +622,8 @@ void ngli_pipeline_uninit(struct ngl_node *node)
     free(s->uniform_pairs);
     for (int i = 0; i < s->nb_buffer_pairs; i++) {
         struct nodeprograminfopair *pair = &s->buffer_pairs[i];
-        ngli_buffer_free((struct ngl_node *)pair->node);
+        struct buffer *buffer = pair->node->priv_data;
+        ngli_graphic_buffer_free(gl, &buffer->graphic_buffer);
     }
     free(s->buffer_pairs);
 }
@@ -650,10 +656,15 @@ int ngli_pipeline_update(struct ngl_node *node, double t)
         gl->features & NGLI_FEATURE_SHADER_STORAGE_BUFFER_OBJECT) {
         const struct hmap_entry *entry = NULL;
         while ((entry = ngli_hmap_next(s->buffers, entry))) {
-            int ret = ngli_node_update(entry->data, t);
+            struct ngl_node *bnode = (struct ngl_node *)entry->data;
+            int ret = ngli_node_update(bnode, t);
             if (ret < 0)
                 return ret;
-            ngli_buffer_upload(entry->data);
+
+            struct buffer *buffer = bnode->priv_data;
+            if (buffer->dynamic && buffer->graphic_buffer_last_upload_time != node->last_update_time) {
+                ngli_graphic_buffer_upload(gl, &buffer->graphic_buffer, buffer->data, buffer->data_size);
+            }
         }
     }
 

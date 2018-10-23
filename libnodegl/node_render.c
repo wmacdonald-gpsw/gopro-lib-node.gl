@@ -158,7 +158,7 @@ static int update_vertex_attribs(struct ngl_node *node)
         struct buffer *buffer = pair->node->priv_data;
 
         ngli_glEnableVertexAttribArray(gl, aid);
-        ngli_glBindBuffer(gl, GL_ARRAY_BUFFER, buffer->buffer_id);
+        ngli_glBindBuffer(gl, GL_ARRAY_BUFFER, buffer->graphic_buffer.id);
         ngli_glVertexAttribPointer(gl, aid, buffer->data_comp, GL_FLOAT, GL_FALSE, buffer->data_stride, NULL);
 
         if (i >= s->first_instance_attribute_index)
@@ -334,14 +334,21 @@ static int render_init(struct ngl_node *node)
         return ret;
 
     /* Allocate buffers */
-    ret = ngli_buffer_allocate(geometry->indices_buffer);
+    struct buffer *buffer = geometry->indices_buffer->priv_data;
+    struct graphic_buffer *graphic_buffer = &buffer->graphic_buffer;
+    ret = ngli_graphic_buffer_allocate(gl, graphic_buffer, buffer->data_size, buffer->usage);
     if (ret < 0)
         return ret;
+    ngli_graphic_buffer_upload(gl, graphic_buffer, buffer->data, buffer->data_size);
+
     for (int i = 0; i < s->nb_attribute_pairs; i++) {
         struct nodeprograminfopair *pair = &s->attribute_pairs[i];
-        ret = ngli_buffer_allocate((struct ngl_node *)pair->node);
+        struct buffer *buffer = (struct buffer *)pair->node->priv_data;
+        struct graphic_buffer *graphic_buffer = &buffer->graphic_buffer;
+        ret = ngli_graphic_buffer_allocate(gl, graphic_buffer, buffer->data_size, buffer->usage);
         if (ret < 0)
             return ret;
+        ngli_graphic_buffer_upload(gl, graphic_buffer, buffer->data, buffer->data_size);
     }
 
     if (gl->features & NGLI_FEATURE_VERTEX_ARRAY_OBJECT) {
@@ -367,11 +374,13 @@ static void render_uninit(struct ngl_node *node)
     ngli_pipeline_uninit(node);
 
     struct geometry *geometry = s->geometry->priv_data;
-    ngli_buffer_free(geometry->indices_buffer);
+    struct buffer *buffer = geometry->indices_buffer->priv_data;
+    ngli_graphic_buffer_free(gl, &buffer->graphic_buffer);
 
     for (int i = 0; i < s->nb_attribute_pairs; i++) {
         struct nodeprograminfopair *pair = &s->attribute_pairs[i];
-        ngli_buffer_free((struct ngl_node *)pair->node);
+        struct buffer *buffer = (struct buffer *)pair->node->priv_data;
+        ngli_graphic_buffer_free(gl, &buffer->graphic_buffer);
     }
 
     free(s->attribute_pairs);
@@ -379,6 +388,8 @@ static void render_uninit(struct ngl_node *node)
 
 static int render_update(struct ngl_node *node, double t)
 {
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *gl = ctx->glcontext;
     struct render *s = node->priv_data;
 
     int ret = ngli_node_update(s->geometry, t);
@@ -391,7 +402,11 @@ static int render_update(struct ngl_node *node, double t)
         int ret = ngli_node_update(bnode, t);
         if (ret < 0)
             return ret;
-        ngli_buffer_upload(bnode);
+
+        struct buffer *buffer = bnode->priv_data;
+        if (buffer->dynamic && buffer->graphic_buffer_last_upload_time != node->last_update_time) {
+            ngli_graphic_buffer_upload(gl, &buffer->graphic_buffer, buffer->data, buffer->data_size);
+        }
     }
 
     return ngli_pipeline_update(node, t);
@@ -426,7 +441,7 @@ static void render_draw(struct ngl_node *node)
     GLenum indices_type;
     ngli_format_get_gl_format_type(gl, indices_buffer->data_format, NULL, NULL, &indices_type);
 
-    ngli_glBindBuffer(gl, GL_ELEMENT_ARRAY_BUFFER, indices_buffer->buffer_id);
+    ngli_glBindBuffer(gl, GL_ELEMENT_ARRAY_BUFFER, indices_buffer->graphic_buffer.id);
     if (s->nb_instances > 0) {
         ngli_glDrawElementsInstanced(gl, geometry->topology, indices_buffer->count, indices_type, 0, s->nb_instances);
     } else {

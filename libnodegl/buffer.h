@@ -24,8 +24,25 @@
 
 #include "nodes.h"
 
-int ngli_buffer_allocate(struct ngl_node *node);
-void ngli_buffer_upload(struct ngl_node *node);
-void ngli_buffer_free(struct ngl_node *node);
+int ngli_graphic_buffer_allocate(struct glcontext *gl,
+                                 struct graphic_buffer *buffer,
+                                 int size,
+                                 int usage);
+
+void ngli_graphic_buffer_bind(struct glcontext *gl,
+                              struct graphic_buffer *buffer,
+                              struct program *program,
+                              int offset,
+                              int size,
+                              int index,
+                              int type);
+
+void ngli_graphic_buffer_upload(struct glcontext *gl,
+                                struct graphic_buffer *buffer,
+                                void *data,
+                                int size);
+
+void ngli_graphic_buffer_free(struct glcontext *gl,
+                              struct graphic_buffer *buffer);
 
 #endif

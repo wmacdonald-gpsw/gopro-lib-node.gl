@@ -205,6 +205,13 @@ struct geometry {
 struct ngl_node *ngli_geometry_generate_buffer(struct ngl_ctx *ctx, int type, int count, int size, void *data);
 struct ngl_node *ngli_geometry_generate_indices_buffer(struct ngl_ctx *ctx, int count);
 
+struct graphic_buffer {
+    GLuint id;
+    int size;
+    int usage;
+    int refcount;
+};
+
 struct buffer {
     int count;              // number of elements
     uint8_t *data;          // buffer of <count> elements
@@ -223,9 +230,8 @@ struct buffer {
     int fd;
     int dynamic;
 
-    GLuint buffer_id;
-    int buffer_refcount;
-    double buffer_last_upload_time;
+    struct graphic_buffer graphic_buffer;
+    double graphic_buffer_last_upload_time;
 };
 
 struct uniform {
