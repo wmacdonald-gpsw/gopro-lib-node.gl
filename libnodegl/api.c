@@ -185,6 +185,7 @@ static int cmd_draw(struct ngl_ctx *s, void *arg)
     const double t = *(double *)arg;
     struct glcontext *gl = s->glcontext;
 
+    const int64_t start = ngli_gettime();
     int ret = cmd_prepare_draw(s, arg);
     if (ret < 0)
         goto end;
@@ -202,6 +203,8 @@ end:
 
     if (!gl->wrapped)
         ngli_glcontext_swap_buffers(gl);
+    const int64_t end = ngli_gettime();
+    LOG(ERROR, "frametime %.2fms", (end-start) * 0.001);
 
     return ret;
 }

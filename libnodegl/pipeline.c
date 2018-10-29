@@ -156,6 +156,9 @@ static int update_sampler2D(const struct glcontext *gl,
 
         return update_default_sampler(gl, s, texture, info, used_texture_units, sampling_mode);
     }
+    else {
+        ngli_glBindTexture(gl, GL_TEXTURE_EXTERNAL_OES, 0);
+    }
     return 0;
 }
 #elif defined(TARGET_IPHONE)

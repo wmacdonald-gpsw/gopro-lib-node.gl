@@ -661,3 +661,188 @@ def mountain(cfg, ndim=3, nb_layers=7,
                           blend_src_factor_a='zero',
                           blend_dst_factor_a='one')
     return blend
+
+
+@scene(MODE_INDEX={'type': 'range', 'range': [0,4]},
+        DISPLAY_RAW_VIDEOS={'type': 'bool'},
+        DISPLAY_INFOS={'type': 'bool'}, 
+        SIMULTANEOUS_360_COUNT={'type': 'range', 'range': [1,6]})
+def spherical(cfg, MODE_INDEX=0, DISPLAY_RAW_VIDEOS=True, DISPLAY_INFOS=False, SIMULTANEOUS_360_COUNT=1):
+    import os
+    cfg.duration = 30.0
+    BASE_VIDEO_PATH = os.path.expanduser("~/Downloads/Dropbox/video_samples")
+
+    mode_array = [
+        'MODE_HEVC_EAC',
+        'MODE_HEVC_EAC_DUAL',
+        'MODE_H264_EAC',
+        'MODE_H264_FISHEYES',
+        'MODE_HEVC_FISHEYES_DUAL'
+    ]
+    MODE = mode_array[MODE_INDEX]
+    print MODE
+
+    VIDEO_PATHS = {
+        'MODE_HEVC_EAC': ['board_coconut/MLBT0001.MOV'],
+        'MODE_HEVC_EAC_DUAL': [
+            'board_coconut/MLBT0001_transcode_hevc_LFR.mp4',
+            'board_coconut/MLBT0001_transcode_hevc_BBT.mp4'
+        ],
+        'MODE_H264_EAC': ['board_coconut/MLBT0001_transcode_h264.mp4'],
+        'MODE_H264_FISHEYES': [
+            'fusion_FS1_04_01_60_00/GPBK0065.MP4',
+            'fusion_FS1_04_01_60_00/GPFR0065.MP4'
+        ],
+        'MODE_HEVC_FISHEYES_DUAL': [
+            'board_coconut/GPBK0065_transcode_hevc_2800x2800.mp4',
+            'board_coconut/GPFR0065_transcode_hevc_2800x2800.mp4'
+        ]
+    }
+
+    # parameters
+    text_style = {
+        "implementation": "DistmapChar",
+        "glow_blur": 0.3, "glow_power": 0.3, "glow_color": (0.0, 0.0, 0.0, 0.5),
+    }
+
+    # cell_centers = {
+    #     1: [xc.Vector(0, 0)],
+    #     2: [xc.Vector(-xc.AR / 2, 0), xc.Vector(xc.AR / 2, 0)],
+    #     3: [xc.Vector(-xc.AR / 2, 0.5), xc.Vector(xc.AR / 2, 0.5), xc.Vector(-xc.AR / 2, -0.5)],
+    #     4: [xc.Vector(-xc.AR / 2, 0.5), xc.Vector(xc.AR / 2, 0.5), xc.Vector(-xc.AR / 2, -0.5), xc.Vector(xc.AR / 2, -0.5)],
+    # }
+    # cell_sizes = {
+    #     1: xc.Vector(2 * xc.AR, 2),
+    #     2: xc.Vector(xc.AR, 2),
+    #     3: xc.Vector(xc.AR, 1),
+    #     4: xc.Vector(xc.AR, 1),
+    # }
+
+    group = Group()
+    # cell_size = cell_sizes[SIMULTANEOUS_360_COUNT]
+    # for cell_center in cell_centers[SIMULTANEOUS_360_COUNT]:
+
+    #     # do not share video decoders for same file
+    #     xc.context.USE_IMAGE_STREAM_CACHE = xc.context.USE_NODEGL_TEXTURE_CACHE = False
+    #     videos = [xc.Video(url=os.path.join(BASE_VIDEO_PATH, video_path)) for video_path in VIDEO_PATHS[MODE]]
+    #     # back to usual state for text
+    #     xc.context.USE_IMAGE_STREAM_CACHE = xc.context.USE_NODEGL_TEXTURE_CACHE = True
+    # videos = []
+
+    shader_version = '300 es' if cfg.backend == 'gles' else '410'
+    shader_header = '#version %s\n' % shader_version
+    program = Program(vertex=shader_header+get_vert('eac2quad'), fragment=shader_header+get_frag('eac2quad'))
+
+    size_factor = 2.0/SIMULTANEOUS_360_COUNT
+    # size_factor = 2.0
+    for index in range(SIMULTANEOUS_360_COUNT):
+
+        textures = []
+        for video_path in VIDEO_PATHS[MODE]:
+            filepath = os.path.join(BASE_VIDEO_PATH, video_path)
+            if filepath not in cfg.files:
+                cfg.files.append(filepath)
+
+            video_m = Media(filename=filepath)
+            video_tex = Texture2D(data_src=video_m, direct_rendering=True)
+            textures.append(video_tex)
+
+        
+        factor = 1-(index / float(SIMULTANEOUS_360_COUNT))
+        # factor = 1
+        quad = Quad(corner=(-1.0*factor, -1.0*factor, 0.0), width=(size_factor, 0.0, 0.0), height=(0.0, size_factor, 0.0))
+        render = Render(geometry=quad, program=program)
+        render.update_textures(texture0=textures[0])
+        if len(textures) > 1:
+            render.update_textures(texture1=textures[1])
+        render.update_uniforms(mode=UniformInt(value=MODE_INDEX))
+
+        group.add_children(render)
+
+
+    # if DISPLAY_RAW_VIDEOS:
+        
+
+    #     os.path.join(BASE_VIDEO_PATH, video_path)
+    #     MODE = 
+
+    #     if len(videos) == 1:
+    #         video_size = cell_size
+    #         offsets = [xc.Vector(0.0, 0.0)]
+    #     elif MODE == MODE_HEVC_EAC_DUAL:
+    #         video_size = cell_size * xc.Vector(1.0, 0.5)
+    #         offsets = [video_size * xc.Vector(0.0, 0.5), video_size * xc.Vector(0.0, -0.5)]
+    #     elif MODE == MODE_FUSION_STICH_MOBILE:
+    #         video_size = cell_size * xc.Vector(0.5, 1.0)
+    #         offsets = [video_size * xc.Vector(-0.5, 0.0), video_size * xc.Vector(0.5, 0.0)]
+    #     else:
+    #         raise Exception("Unknown MODE")
+
+    #     for video, offset in zip(videos, offsets):
+    #         video_group = xc.Group()
+
+    #         video_node = video.fitting_node(width=video_size.x, height=video_size.y)
+    #         video_group.add_child(video_node)
+
+    #         if DISPLAY_INFOS:
+    #             info_string = "%dx%d@%.02f (%s)" % (video.encoded_width, video.encoded_height, video.fps, video.video_codec)
+    #             info = xc.Text(info_string, fontsize=0.1,
+    #                 width=video_size.x, height=video_size.y, horizontal_align=RIGHT, vertical_align=TOP,
+    #                 **text_style)
+    #             video_group.add_child(xc.translate(info.node(), vector=video_size * 0.5))
+
+    #         video_group = xc.translate(video_group, vector=cell_center + offset)
+    #         group.add_child(video_group)
+
+    # else:
+    #     # Projection
+    #     if MODE == MODE_FUSION_STICH_MOBILE:
+    #         raise NotImplementedError()
+
+    #     width, height = cell_size.xy
+    #     angle = 100.0
+    #     offset = 0.0
+    #     psi = [(0.0, 0.0), (DURATION / 2, 360.0)]
+    #     theta = [(DURATION / 2, 0.0), (DURATION, 360.0)]
+    #     phi = 0.0
+
+    #     mapping_group = Group()
+    #     quad = xc.canvas(width=width, height=height)
+    #     if is_osg_rendering():
+    #         for index, video in enumerate(videos):
+    #             xc.add_sampler2D(quad, "texture%d" % index, video._texture, index)
+    #     else:
+    #         textures = {"texture%d" % index: video._texture for index, video in enumerate(videos)}
+    #         quad.update_textures(**textures)
+    #         # NodeGL does not provide a texmat by default
+    #         texmat = (
+    #             1.0, 0.0, 0.0, 0.0,
+    #             0.0, 1.0, 0.0, 0.0,
+    #             0.0, 0.0, 1.0, 0.0,
+    #             0.0, 0.0, 0.0, 1.0,
+    #         )
+    #         xc.add_texmat(quad, texmat, 0)
+    #     fragment = open("eac2quad.glsl").read()
+    #     xc.set_shader(node=quad, fragment_source=fragment)
+    #     xc.add_uniforms(
+    #         quad,
+    #         aspect_ratio=width / float(height), angle=angle, offset=offset,
+    #         psi=psi, theta=theta, phi=phi,
+    #         mode=1.0 if MODE in {MODE_HEVC_EAC_DUAL} else 0.0,
+    #     )
+    #     mapping_group.add_child(quad)
+
+    #     if DISPLAY_INFOS:
+    #         info_string = MODE + "\n"
+    #         for video in videos:
+    #             info_string += "%dx%d@%.02f (%s)\n" % (video.encoded_width, video.encoded_height, video.fps, video.video_codec)
+    #         info = xc.Text(info_string, fontsize=0.1,
+    #             width=cell_size.x, height=cell_size.y, horizontal_align=RIGHT, vertical_align=TOP,
+    #             **text_style)
+    #         mapping_group.add_child(xc.translate(info.node(), vector=cell_size * 0.5))
+
+    #     mapping_group = xc.translate(mapping_group, vector=cell_center)
+    #     group.add_child(mapping_group)
+
+    return group
+
