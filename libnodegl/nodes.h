@@ -289,8 +289,8 @@ struct program_priv {
     VkShaderModule frag_shader;
     VkPipelineShaderStageCreateInfo shader_stage_create_info[2];
 
-    struct spirv_desc *vert_desc;
-    struct spirv_desc *frag_desc;
+    struct spirv_probe *vert_desc;
+    struct spirv_probe *frag_desc;
 #else
     const char *vertex;
     const char *fragment;

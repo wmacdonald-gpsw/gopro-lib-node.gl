@@ -587,22 +587,22 @@ static VkResult create_descriptor_layout_bindings(struct ngl_node *node)
     };
 
     struct hmap *bindings_map[] = {
-        program->vert_desc ? program->vert_desc->bindings : NULL,
-        program->frag_desc ? program->frag_desc->bindings : NULL,
+        program->vert_desc ? program->vert_desc->variables : NULL,
+        program->frag_desc ? program->frag_desc->variables : NULL,
     };
 
     // Create descriptor sets
     int constant_offset = 0;
     for (int i = 0; i < NGLI_ARRAY_NB(bindings_map); i++) {
-        const struct hmap *bindings = bindings_map[i];
-        if (!bindings)
+        const struct hmap *variables = bindings_map[i];
+        if (!variables)
             continue;
 
-        const struct hmap_entry *binding_entry = NULL;
-        while ((binding_entry = ngli_hmap_next(bindings, binding_entry))) {
-            struct spirv_binding *binding = binding_entry->data;
-            if ((binding->flag & NGLI_SHADER_CONSTANT)) {
-                struct spirv_block *block = binding_entry->data;
+        const struct hmap_entry *variable_entry = NULL;
+        while ((variable_entry = ngli_hmap_next(variables, variable_entry))) {
+            struct spirv_binding *binding = variable_entry->data;
+            if (binding->flag & NGLI_SHADER_CONSTANT) {
+                struct spirv_block *block = variable_entry->data;
                 VkPushConstantRange descriptor = {
                     .stageFlags = stages_map[i],
                     .offset = constant_offset,
@@ -610,44 +610,28 @@ static VkResult create_descriptor_layout_bindings(struct ngl_node *node)
                 };
                 constant_offset = block->size;
                 ngli_darray_push(&s->constant_descriptors, &descriptor);
-            } else if ((binding->flag & NGLI_SHADER_UNIFORM)) {
+            } else if (binding->flag & (NGLI_SHADER_UNIFORM | NGLI_SHADER_STORAGE | NGLI_SHADER_SAMPLER)) {
                 VkDescriptorSetLayoutBinding *descriptorp = get_descriptor_layout_binding(&s->binding_descriptors, binding->index);
                 if (descriptorp) {
                     descriptorp->stageFlags |= stages_map[i];
                 } else {
+                    VkDescriptorType desc_type;
+                    if (binding->flag & NGLI_SHADER_UNIFORM)
+                        desc_type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+                    else if (binding->flag & NGLI_SHADER_STORAGE)
+                        desc_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                    else if (binding->flag & NGLI_SHADER_SAMPLER)
+                        desc_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+                    else
+                        ngli_assert(0);
+
                     VkDescriptorSetLayoutBinding descriptor = {
                         .binding = binding->index,
-                        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                        .descriptorType = desc_type,
                         .descriptorCount = 1,
                         .stageFlags = stages_map[i],
                     };
                     ngli_darray_push(&s->binding_descriptors, &descriptor);
-                }
-            } else if (binding->flag & NGLI_SHADER_STORAGE) {
-                VkDescriptorSetLayoutBinding *descriptorp = get_descriptor_layout_binding(&s->binding_descriptors, binding->index);
-                if (descriptorp) {
-                    descriptorp->stageFlags |= stages_map[i];
-                } else {
-                VkDescriptorSetLayoutBinding descriptor = {
-                    .binding = binding->index,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                    .descriptorCount = 1,
-                    .stageFlags = stages_map[i],
-                };
-                ngli_darray_push(&s->binding_descriptors, &descriptor);
-                }
-            } else if (binding->flag & NGLI_SHADER_SAMPLER) {
-                VkDescriptorSetLayoutBinding *descriptorp = get_descriptor_layout_binding(&s->binding_descriptors, binding->index);
-                if (descriptorp) {
-                    descriptorp->stageFlags |= stages_map[i];
-                } else {
-                VkDescriptorSetLayoutBinding descriptor = {
-                    .binding = binding->index,
-                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .descriptorCount = 1,
-                    .stageFlags = stages_map[i],
-                };
-                ngli_darray_push(&s->binding_descriptors, &descriptor);
                 }
             }
         }
@@ -823,26 +807,22 @@ int ngli_pipeline_init(struct ngl_node *node)
     }
 
     // compute uniform buffer size needed
-    // VkDeviceSize          minUniformBufferOffsetAlignment;
-    // VkDeviceSize          minStorageBufferOffsetAlignment;
     int uniform_buffer_size = 0;
     for (int i = 0; i < NGLI_ARRAY_NB(bindings_map); i++) {
-        const struct hmap *blocks = bindings_map[i];
-        if (!blocks)
+        const struct hmap *block_defs = bindings_map[i];
+        if (!block_defs)
             continue;
 
+        // XXX: some blocks may be unused?
         const struct hmap_entry *block_entry = NULL;
         while ((block_entry = ngli_hmap_next(blocks, block_entry))) {
-            struct spirv_binding *binding = block_entry->data;
-            if ((binding->flag & NGLI_SHADER_UNIFORM)) {
-                struct spirv_block *block = block_entry->data;
-                uniform_buffer_size += NGLI_ALIGN(block->size, 32);
-            }
+            struct spirv_block *block = block_entry->data;
+            uniform_buffer_size += NGLI_ALIGN(block->size, 32);
         }
     }
 
     if (uniform_buffer_size) {
-        // alocate uniform pairs
+        // allocate uniform pairs
         int nb_uniforms = s->uniforms ? ngli_hmap_count(s->uniforms) : 0;
         if (nb_uniforms > 0) {
             s->uniform_pairs = ngli_calloc(nb_uniforms, sizeof(*s->uniform_pairs));

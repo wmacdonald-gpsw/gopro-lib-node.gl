@@ -302,7 +302,7 @@ static int init_vertex_input_attrib_desc(struct ngl_node *node)
 
         VkVertexInputAttributeDescription attr_desc = {
             .binding = s->nb_binds,
-            .location = info->offset,
+            .location = info->location,
             .format = data_format,
         };
 
@@ -368,7 +368,11 @@ static int pair_node_to_attribinfo(struct render_priv *s, const char *name,
 
 #ifdef VULKAN_BACKEND
     const struct spirv_variable *active_attribute =
-        ngli_hmap_get(program->vert_desc->attributes, name);
+        ngli_hmap_get(program->vert_desc->variables, name);
+    if (active_attribute->storage_class != NGLI_SPIRV_STORAGE_CLASS_INPUT) {
+        LOG(ERROR, "%s found in the shader but is not an input", name);
+        return -1;
+    }
 #else
     const struct attributeprograminfo *active_attribute =
         ngli_hmap_get(program->active_attributes, name);

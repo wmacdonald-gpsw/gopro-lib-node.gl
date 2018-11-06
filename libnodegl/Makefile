@@ -267,8 +267,11 @@ gl.xml:
 #
 # Vulkan default shader SPIR-V generation
 #
-update_vk_spirv:
-	$(PYTHON) gen_vk_spirv.py vk_spirv.c
+vk_default_vert.h: vk/default.frag
+	glslangValidator -V --vn vk_default_vert -o $@ $<
+vk_default_frag.h: vk/default.vert
+	glslangValidator -V --vn vk_default_frag -o $@ $<
+node_program.o: vk_default_vert.h vk_default_frag.h
 
 #
 # Tests
@@ -276,7 +279,7 @@ update_vk_spirv:
 TESTS = asm             \
         darray          \
         hmap            \
-        reflection      \
+        spirv           \
         utils           \
 
 TESTPROGS = $(addprefix test_,$(TESTS))
@@ -289,7 +292,7 @@ test_asm: LDLIBS = $(PROJECT_LDLIBS) -lm
 test_asm: test_asm.o math_utils.o $(LIB_OBJS_ARCH_$(ARCH))
 test_darray: test_darray.o darray.o memory.o
 test_hmap: test_hmap.o utils.o memory.o
-test_reflection: test_reflection.o spirv.o hmap.o utils.o darray.o memory.o
+test_spirv: test_spirv.o spirv.o hmap.o utils.o darray.o memory.o log.o
 test_utils: test_utils.o utils.o memory.o
 
 

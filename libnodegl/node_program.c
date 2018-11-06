@@ -32,11 +32,8 @@
 #include "spirv.h"
 
 #ifdef VULKAN_BACKEND
-extern const int ngli_vk_default_frag_size;
-extern const char *ngli_vk_default_frag;
-
-extern const int ngli_vk_default_vert_size;
-extern const char *ngli_vk_default_vert;
+#include "vk_default_frag.h"
+#include "vk_default_vert.h"
 #else
 
 #if defined(TARGET_ANDROID)
@@ -138,20 +135,22 @@ static int program_init(struct ngl_node *node)
     struct glcontext *vk = ctx->glcontext;
     int ret;
 
+    // TODO: ngli_memdup()
     if (!s->vert_data) {
-        s->vert_data_size = ngli_vk_default_vert_size;
+        s->vert_data_size = sizeof(vk_default_vert);
         s->vert_data = ngli_malloc(s->vert_data_size);
         if (!s->vert_data)
             return -1;
-        memcpy(s->vert_data, ngli_vk_default_vert, s->vert_data_size);
+        memcpy(s->vert_data, vk_default_vert, s->vert_data_size);
     }
 
+    // TODO: ngli_memdup()
     if (!s->frag_data) {
-        s->frag_data_size = ngli_vk_default_frag_size;
+        s->frag_data_size = sizeof(vk_default_frag);
         s->frag_data = ngli_malloc(s->frag_data_size);
         if (!s->frag_data)
             return -1;
-        memcpy(s->frag_data, ngli_vk_default_frag, s->frag_data_size);
+        memcpy(s->frag_data, vk_default_frag, s->frag_data_size);
     }
 
     if ((ret = create_shader_module(&s->vert_shader, vk->device,
@@ -160,12 +159,11 @@ static int program_init(struct ngl_node *node)
                                     s->frag_data, s->frag_data_size)) != VK_SUCCESS)
         return -1;
 
-    // reflect shaders
-    s->vert_desc = ngli_spirv_parse((uint32_t*)s->vert_data, s->vert_data_size);
+    s->vert_desc = ngli_spirv_probe((uint32_t*)s->vert_data, s->vert_data_size);
     if (!s->vert_desc)
         return -1;
 
-    s->frag_desc = ngli_spirv_parse((uint32_t*)s->frag_data, s->frag_data_size);
+    s->frag_desc = ngli_spirv_probe((uint32_t*)s->frag_data, s->frag_data_size);
     if (!s->frag_desc)
         return -1;
 

@@ -33,6 +33,10 @@ int ngli_buffer_allocate(struct buffer *buffer, struct glcontext *gl, int size, 
 #ifdef VULKAN_BACKEND
     struct glcontext *vk = gl;
 
+    // XXX: use the following for the size?
+    // VkDeviceSize          minUniformBufferOffsetAlignment;
+    // VkDeviceSize          minStorageBufferOffsetAlignment;
+
     /* Create buffer object */
     VkBufferCreateInfo buffer_create_info = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
