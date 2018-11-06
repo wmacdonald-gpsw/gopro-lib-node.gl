@@ -36,7 +36,7 @@ enum {
     NGLI_SHADER_UNIFORM         = 1 << 7,
     NGLI_SHADER_STORAGE         = 1 << 8,
     NGLI_SHADER_DYNAMIC         = 1 << 9,
-    NGLI_SHADER_INDIRECTION     = 1 << 10
+    NGLI_SHADER_INDIRECTION     = 1 << 10,
 };
 
 struct spirv_attribute {

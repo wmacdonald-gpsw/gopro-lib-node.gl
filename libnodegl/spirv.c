@@ -27,8 +27,7 @@
 #include "utils.h"
 #include "hmap.h"
 
-struct spirv_header
-{
+struct spirv_header {
     uint32_t magic;
     uint32_t version;
     uint32_t gen_magic;
@@ -36,14 +35,12 @@ struct spirv_header
     uint32_t reserved;
 };
 
-struct shader_variable_internal
-{
+struct shader_variable_internal {
     const char *name;
     uint16_t offset;
 };
 
-struct shader_type_internal
-{
+struct shader_type_internal {
     const char *name;
     struct shader_variable_internal variables[8];
     uint8_t nb_variables;
@@ -53,8 +50,7 @@ struct shader_type_internal
 };
 
 // TODO: remove stack limitation?
-struct shader_internal
-{
+struct shader_internal {
     struct shader_type_internal types[64];
     uint8_t variable_type_indices[64];
     uint8_t nb_variables;
@@ -62,9 +58,8 @@ struct shader_internal
     uint8_t nb_blocks;
 };
 
-struct spirv_desc* ngli_spirv_parse(const uint32_t *code, size_t size)
+struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
 {
-    // header
     if (size < sizeof(struct spirv_header))
         return NULL;
 
@@ -77,7 +72,6 @@ struct spirv_desc* ngli_spirv_parse(const uint32_t *code, size_t size)
     code += sizeof(struct spirv_header) / sizeof(uint32_t);
     size -= sizeof(struct spirv_header);
 
-    // data
     struct shader_internal internal;
     memset(&internal, 0, sizeof(internal));
 
@@ -86,12 +80,11 @@ struct spirv_desc* ngli_spirv_parse(const uint32_t *code, size_t size)
         const uint16_t opcode     = opcode0 & 0xffff;
         const uint16_t word_count = opcode0 >> 16;
 
-        // check instruction size
         const uint32_t instruction_size = word_count * sizeof(uint32_t);
-        if (size < instruction_size)
+        if (instruction_size > size)
             return NULL;
 
-        switch(opcode) {
+        switch (opcode) {
             // OpName
             case 5: {
                 const uint32_t type_id = code[1];
@@ -324,7 +317,7 @@ struct spirv_desc* ngli_spirv_parse(const uint32_t *code, size_t size)
                 const uint32_t decoration = code[3];
 
                 // Offset
-                if(decoration == 35) {
+                if (decoration == 35) {
                     const uint32_t offset = code[4];
                     struct shader_variable_internal *variable = &internal.types[type_id].variables[variable_index];
                     variable->offset = offset;
