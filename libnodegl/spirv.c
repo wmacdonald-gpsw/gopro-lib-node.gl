@@ -58,6 +58,265 @@ struct shader_internal {
     uint8_t nb_blocks;
 };
 
+static int op_name(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t type_id = code[1];
+    const char *name = (const char *)&code[2];
+    struct shader_type_internal *type = &s->types[type_id];
+    type->name = name;
+    return 0;
+}
+
+static int op_membername(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t type_id = code[1];
+    const uint32_t variable_index = code[2];
+    const char *name = (const char *)&code[3];
+
+    struct shader_type_internal *type = &s->types[type_id];
+    type->nb_variables++;
+
+    struct shader_variable_internal *variable = &type->variables[variable_index];
+    variable->name = name;
+    return 0;
+}
+
+static int op_typefloat(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t type_id = code[1];
+    const uint32_t type_size = code[2];
+    struct shader_type_internal *type = &s->types[type_id];
+    type->size = type_size / 8;
+    return 0;
+}
+
+static int op_typevector(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t type_id = code[1];
+    const uint32_t component_type_id = code[2];
+    const uint32_t component_count = code[3];
+    struct shader_type_internal *type = &s->types[type_id];
+    struct shader_type_internal *component_type = &s->types[component_type_id];
+    type->size = component_type->size * component_count;
+    return 0;
+}
+
+static int op_typematrix(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t type_id = code[1];
+    const uint32_t column_type_id = code[2];
+    const uint32_t column_count = code[3];
+    struct shader_type_internal *type = &s->types[type_id];
+    struct shader_type_internal *column_type = &s->types[column_type_id];
+    type->size = column_type->size * column_count;
+    return 0;
+}
+
+static int op_typeimage(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t type_id = code[1];
+    struct shader_type_internal *type = &s->types[type_id];
+    type->flag |= NGLI_SHADER_TEXTURE;
+    return 0;
+}
+
+static int op_typesampler(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t pointer_id = code[1];
+    const uint32_t type_id = code[2];
+
+    struct shader_type_internal *pointer_type = &s->types[pointer_id];
+    pointer_type->flag = NGLI_SHADER_INDIRECTION;
+    pointer_type->index = type_id;
+
+    struct shader_type_internal *type = &s->types[type_id];
+    type->flag |= NGLI_SHADER_SAMPLER;
+    return 0;
+}
+
+static int op_typesampledimage(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t pointer_id = code[1];
+    const uint32_t type_id = code[2];
+
+    struct shader_type_internal *pointer_type = &s->types[pointer_id];
+    pointer_type->flag = NGLI_SHADER_INDIRECTION;
+    pointer_type->index = type_id;
+
+    struct shader_type_internal *type = &s->types[type_id];
+    type->flag |= NGLI_SHADER_SAMPLER;
+    return 0;
+}
+
+static int op_typeruntimearray(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t pointer_id = code[1];
+    const uint32_t type_id = code[2];
+
+    struct shader_type_internal *type = &s->types[pointer_id];
+    type->index = type_id;
+    type->flag = (uint8_t)-1;
+    return 0;
+}
+
+static int op_typestruct(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t type_id = code[1];
+
+    struct shader_type_internal *type = &s->types[type_id];
+    const uint8_t last_variable_index = type->nb_variables - 1;
+    const uint32_t member_type_id = code[2 + last_variable_index];
+    struct shader_type_internal *member_type = &s->types[member_type_id];
+    struct shader_variable_internal *variable = &type->variables[last_variable_index];
+    type->size = variable->offset + member_type->size;
+    return 0;
+}
+
+static int op_typepointer(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t pointer_id = code[1];
+    const uint32_t storage_type = code[2];
+    const uint32_t type_id = code[3];
+
+    switch (storage_type) {
+        case 0:   // UniformConstant
+        case 2: { // Uniform
+            struct shader_type_internal *type = &s->types[pointer_id];
+            type->flag = NGLI_SHADER_INDIRECTION;
+            type->index = type_id;
+            break;
+        }
+
+        // PushConstant
+        case 9: {
+            struct shader_type_internal *type = &s->types[pointer_id];
+            type->flag = NGLI_SHADER_INDIRECTION;
+            type->index = type_id;
+
+            struct shader_type_internal *block_type = &s->types[type_id];
+            block_type->flag &= ~NGLI_SHADER_UNIFORM;
+            block_type->flag |= NGLI_SHADER_CONSTANT;
+            break;
+        }
+    }
+    return 0;
+}
+
+static int op_variable(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t pointer_id = code[1];
+    const uint32_t type_id = code[2];
+    const uint32_t storage_type = code[3];
+
+    struct shader_type_internal *type = &s->types[type_id];
+    switch (storage_type) {
+        // Input
+        case 1: {
+            type->flag |= NGLI_SHADER_INPUT;
+            break;
+        }
+
+        case 0: // UniformConstant
+        case 2: // Uniform
+        case 9: {
+            // indirection to proper structureu
+            uint32_t block_id = pointer_id;
+            struct shader_type_internal *block_type = NULL;
+            do {
+                block_type = &s->types[block_id];
+                block_id = block_type->index;
+            } while (block_type->flag == NGLI_SHADER_INDIRECTION); // FIXME: use & instead of ==
+
+            memcpy(type->variables, block_type->variables, sizeof(type->variables));
+            type->nb_variables = block_type->nb_variables;
+            type->size = block_type->size;
+            type->flag = block_type->flag;
+            s->block_type_indices[s->nb_blocks++] = type_id;
+        }
+
+        // Output
+        case 3: {
+            type->flag |= NGLI_SHADER_OUTPUT;
+            break;
+        }
+    }
+    return 0;
+}
+
+static int op_decorate(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t type_id = code[1];
+    const uint32_t decoration = code[2];
+    switch (decoration) {
+        // Block
+        case 2: {
+            struct shader_type_internal *type = &s->types[type_id];
+            type->flag |= NGLI_SHADER_BLOCK;
+            type->flag |= NGLI_SHADER_UNIFORM;
+            break;
+        }
+
+        // Buffer Block
+        case 3: {
+            struct shader_type_internal *type = &s->types[type_id];
+            type->flag |= NGLI_SHADER_BLOCK;
+            type->flag |= NGLI_SHADER_STORAGE;
+            break;
+        }
+
+        // Location
+        case 30: {
+            const uint32_t index = code[3];
+            s->types[type_id].index = index;
+            s->types[type_id].flag |= NGLI_SHADER_ATTRIBUTE;
+            s->variable_type_indices[s->nb_variables++] = type_id;
+            break;
+        }
+
+        case 33: {
+            const uint32_t index = code[3];
+            s->types[type_id].index = index;
+            break;
+        }
+    }
+    return 0;
+}
+
+static int op_memberdecorate(struct shader_internal *s, const uint32_t *code)
+{
+    const uint32_t type_id = code[1];
+    const uint32_t variable_index = code[2];
+    const uint32_t decoration = code[3];
+
+    // Offset
+    if (decoration == 35) {
+        const uint32_t offset = code[4];
+        struct shader_variable_internal *variable = &s->types[type_id].variables[variable_index];
+        variable->offset = offset;
+    }
+    return 0;
+}
+
+static const struct {
+    int (*func)();
+    //int min_size;
+} op_map[] = {
+    [ 5] = {op_name},
+    [ 6] = {op_membername},
+    [22] = {op_typefloat},
+    [23] = {op_typevector},
+    [24] = {op_typematrix},
+    [25] = {op_typeimage},
+    [26] = {op_typesampler},
+    [27] = {op_typesampledimage},
+    [29] = {op_typeruntimearray},
+    [30] = {op_typestruct},
+    [32] = {op_typepointer},
+    [59] = {op_variable},
+    [71] = {op_decorate},
+    [72] = {op_memberdecorate},
+};
+
 struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
 {
     if (size < sizeof(struct spirv_header))
@@ -84,247 +343,10 @@ struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
         if (instruction_size > size)
             return NULL;
 
-        switch (opcode) {
-            // OpName
-            case 5: {
-                const uint32_t type_id = code[1];
-                const char *name = (const char *)&code[2];
-
-                struct shader_type_internal *type = &internal.types[type_id];
-                type->name = name;
-                break;
-            }
-
-            // OpMemberName
-            case 6: {
-                const uint32_t type_id = code[1];
-                const uint32_t variable_index = code[2];
-                const char *name = (const char *)&code[3];
-
-                struct shader_type_internal *type = &internal.types[type_id];
-                type->nb_variables++;
-
-                struct shader_variable_internal *variable = &type->variables[variable_index];
-                variable->name = name;
-                break;
-            }
-
-            // OpTypeFloat
-            case 22: {
-                const uint32_t type_id = code[1];
-                const uint32_t type_size = code[2];
-                struct shader_type_internal *type = &internal.types[type_id];
-                type->size = type_size / 8;
-                break;
-            }
-
-            // OpTypeVector
-            case 23: {
-                const uint32_t type_id = code[1];
-                const uint32_t component_type_id = code[2];
-                const uint32_t component_count = code[3];
-                struct shader_type_internal *type = &internal.types[type_id];
-                struct shader_type_internal *component_type = &internal.types[component_type_id];
-                type->size = component_type->size * component_count;
-                break;
-            }
-
-            // OpTypeMatrix
-            case 24: {
-                const uint32_t type_id = code[1];
-                const uint32_t column_type_id = code[2];
-                const uint32_t column_count = code[3];
-                struct shader_type_internal *type = &internal.types[type_id];
-                struct shader_type_internal *column_type = &internal.types[column_type_id];
-                type->size = column_type->size * column_count;
-                break;
-            }
-
-            // OpTypeImage
-            case 25: {
-                const uint32_t type_id = code[1];
-                struct shader_type_internal *type = &internal.types[type_id];
-                type->flag |= NGLI_SHADER_TEXTURE;
-                break;
-            }
-
-            // OpTypeSampler
-            case 26: {
-                const uint32_t pointer_id = code[1];
-                const uint32_t type_id = code[2];
-
-                struct shader_type_internal *pointer_type = &internal.types[pointer_id];
-                pointer_type->flag = NGLI_SHADER_INDIRECTION;
-                pointer_type->index = type_id;
-
-                struct shader_type_internal *type = &internal.types[type_id];
-                type->flag |= NGLI_SHADER_SAMPLER;
-                break;
-            }
-            // OpTypeSampledImage
-            case 27: {
-                const uint32_t pointer_id = code[1];
-                const uint32_t type_id = code[2];
-
-                struct shader_type_internal *pointer_type = &internal.types[pointer_id];
-                pointer_type->flag = NGLI_SHADER_INDIRECTION;
-                pointer_type->index = type_id;
-
-                struct shader_type_internal *type = &internal.types[type_id];
-                type->flag |= NGLI_SHADER_SAMPLER;
-                break;
-            }
-
-            // OpTypeRuntimeArray
-            case 29: {
-                const uint32_t pointer_id = code[1];
-                const uint32_t type_id = code[2];
-
-                struct shader_type_internal *type = &internal.types[pointer_id];
-                type->index = type_id;
-                type->flag = (uint8_t)-1;
-                break;
-            }
-
-            // OpTypeStruct
-            case 30: {
-                const uint32_t type_id = code[1];
-
-                struct shader_type_internal *type = &internal.types[type_id];
-                const uint8_t last_variable_index = type->nb_variables - 1;
-                const uint32_t member_type_id = code[2 + last_variable_index];
-                struct shader_type_internal *member_type = &internal.types[member_type_id];
-                struct shader_variable_internal *variable = &type->variables[last_variable_index];
-                type->size = variable->offset + member_type->size;
-                break;
-            }
-
-            // OpTypePointer
-            case 32: {
-                const uint32_t pointer_id = code[1];
-                const uint32_t storage_type = code[2];
-                const uint32_t type_id = code[3];
-
-                switch (storage_type) {
-                    case 0:   // UniformConstant
-                    case 2: { // Uniform
-                        struct shader_type_internal *type = &internal.types[pointer_id];
-                        type->flag = NGLI_SHADER_INDIRECTION;
-                        type->index = type_id;
-                        break;
-                    }
-
-                    // PushConstant
-                    case 9: {
-                        struct shader_type_internal *type = &internal.types[pointer_id];
-                        type->flag = NGLI_SHADER_INDIRECTION;
-                        type->index = type_id;
-
-                        struct shader_type_internal *block_type = &internal.types[type_id];
-                        block_type->flag &= ~NGLI_SHADER_UNIFORM;
-                        block_type->flag |= NGLI_SHADER_CONSTANT;
-                        break;
-                    }
-                }
-                break;
-            }
-
-            // OpVariable
-            case 59: {
-                const uint32_t pointer_id = code[1];
-                const uint32_t type_id = code[2];
-                const uint32_t storage_type = code[3];
-
-                struct shader_type_internal *type = &internal.types[type_id];
-                switch (storage_type) {
-                    // Input
-                    case 1: {
-                        type->flag |= NGLI_SHADER_INPUT;
-                        break;
-                    }
-
-                    case 0: // UniformConstant
-                    case 2: // Uniform
-                    case 9: {
-                        // indirection to proper structureu
-                        uint32_t block_id = pointer_id;
-                        struct shader_type_internal *block_type = NULL;
-                        do {
-                            block_type = &internal.types[block_id];
-                            block_id = block_type->index;
-                        } while(block_type->flag == NGLI_SHADER_INDIRECTION); // FIXME: use & instead of ==
-
-                        memcpy(type->variables, block_type->variables, sizeof(type->variables));
-                        type->nb_variables = block_type->nb_variables;
-                        type->size = block_type->size;
-                        type->flag = block_type->flag;
-                        internal.block_type_indices[internal.nb_blocks++] = type_id;
-                    }
-
-                    // Output
-                    case 3: {
-                        type->flag |= NGLI_SHADER_OUTPUT;
-                        break;
-                    }
-
-                }
-                break;
-            }
-
-            // OpDecorate
-            case 71: {
-                const uint32_t type_id = code[1];
-                const uint32_t decoration = code[2];
-                switch (decoration) {
-                    // Block
-                    case 2: {
-                        struct shader_type_internal *type = &internal.types[type_id];
-                        type->flag |= NGLI_SHADER_BLOCK;
-                        type->flag |= NGLI_SHADER_UNIFORM;
-                        break;
-                    }
-
-                    // Buffer Block
-                    case 3: {
-                        struct shader_type_internal *type = &internal.types[type_id];
-                        type->flag |= NGLI_SHADER_BLOCK;
-                        type->flag |= NGLI_SHADER_STORAGE;
-                        break;
-                    }
-
-                    // Location
-                    case 30: {
-                        const uint32_t index = code[3];
-                        internal.types[type_id].index = index;
-                        internal.types[type_id].flag |= NGLI_SHADER_ATTRIBUTE;
-                        internal.variable_type_indices[internal.nb_variables++] = type_id;
-                        break;
-                    }
-
-                    case 33: {
-                        const uint32_t index = code[3];
-                        internal.types[type_id].index = index;
-                        break;
-                    }
-                }
-                break;
-            }
-
-            // OpMemberDecorate
-            case 72: {
-                const uint32_t type_id = code[1];
-                const uint32_t variable_index = code[2];
-                const uint32_t decoration = code[3];
-
-                // Offset
-                if (decoration == 35) {
-                    const uint32_t offset = code[4];
-                    struct shader_variable_internal *variable = &internal.types[type_id].variables[variable_index];
-                    variable->offset = offset;
-                }
-                break;
-            }
+        if (opcode < NGLI_ARRAY_NB(op_map) && op_map[opcode].func) {
+            op_map[opcode].func(&internal, code);
         }
+
         code += word_count;
         size -= instruction_size;
     }
