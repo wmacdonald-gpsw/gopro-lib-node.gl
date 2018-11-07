@@ -217,7 +217,7 @@ static int op_variable(struct shader_internal *s, const uint32_t *code)
         case 0: // UniformConstant
         case 2: // Uniform
         case 9: {
-            // indirection to proper structureu
+            // indirection to proper structure
             uint32_t block_id = pointer_id;
             struct shader_type_internal *block_type = NULL;
             do {
@@ -344,7 +344,7 @@ struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
         const uint16_t word_count = opcode0 >> 16;
 
         const uint32_t instruction_size = word_count * sizeof(uint32_t);
-        if (instruction_size > size)
+        if (instruction_size > size) // XXX alloc
             return NULL;
 
         if (opcode < NGLI_ARRAY_NB(op_map) && op_map[opcode].func) {
@@ -424,7 +424,7 @@ struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
 
         ngli_hmap_set(spirv_desc->bindings, type_internal->name, binding);
         binding = (struct spirv_binding*)(((uint8_t*)binding) + binding_byte);
-     }
+    }
 
     ngli_darray_reset(&internal.variable_type_indices);
     ngli_darray_reset(&internal.block_type_indices);
