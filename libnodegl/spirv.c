@@ -297,22 +297,22 @@ static int op_memberdecorate(struct shader_internal *s, const uint32_t *code)
 
 static const struct {
     int (*func)();
-    //int min_size;
+    int min_size;
 } op_map[] = {
-    [ 5] = {op_name},
-    [ 6] = {op_membername},
-    [22] = {op_typefloat},
-    [23] = {op_typevector},
-    [24] = {op_typematrix},
-    [25] = {op_typeimage},
-    [26] = {op_typesampler},
-    [27] = {op_typesampledimage},
-    [29] = {op_typeruntimearray},
-    [30] = {op_typestruct},
-    [32] = {op_typepointer},
-    [59] = {op_variable},
-    [71] = {op_decorate},
-    [72] = {op_memberdecorate},
+    [ 5] = {op_name, 3},
+    [ 6] = {op_membername, 4},
+    [22] = {op_typefloat, 3},
+    [23] = {op_typevector, 4},
+    [24] = {op_typematrix, 4},
+    [25] = {op_typeimage, 9},
+    [26] = {op_typesampler, 2},
+    [27] = {op_typesampledimage, 3},
+    [29] = {op_typeruntimearray, 3},
+    [30] = {op_typestruct, 2},
+    [32] = {op_typepointer, 4},
+    [59] = {op_variable, 4},
+    [71] = {op_decorate, 3},
+    [72] = {op_memberdecorate, 4},
 };
 
 struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
@@ -348,7 +348,8 @@ struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
             return NULL;
 
         if (opcode < NGLI_ARRAY_NB(op_map) && op_map[opcode].func) {
-            op_map[opcode].func(&internal, code);
+            if (word_count >= op_map[opcode].min_size)
+                op_map[opcode].func(&internal, code);
         }
 
         code += word_count;
