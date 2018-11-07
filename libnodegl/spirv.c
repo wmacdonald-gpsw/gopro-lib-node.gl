@@ -26,6 +26,7 @@
 #include "spirv.h"
 #include "utils.h"
 #include "hmap.h"
+#include "darray.h"
 
 struct spirv_header {
     uint32_t magic;
@@ -49,13 +50,10 @@ struct shader_type_internal {
     uint16_t flag;
 };
 
-// TODO: remove stack limitation?
 struct shader_internal {
-    struct shader_type_internal types[64];
-    uint8_t variable_type_indices[64];
-    uint8_t nb_variables;
-    uint8_t block_type_indices[64];
-    uint8_t nb_blocks;
+    struct shader_type_internal types[256];
+    struct darray variable_type_indices;
+    struct darray block_type_indices;
 };
 
 static int op_name(struct shader_internal *s, const uint32_t *code)
@@ -231,7 +229,7 @@ static int op_variable(struct shader_internal *s, const uint32_t *code)
             type->nb_variables = block_type->nb_variables;
             type->size = block_type->size;
             type->flag = block_type->flag;
-            s->block_type_indices[s->nb_blocks++] = type_id;
+            ngli_darray_push(&s->block_type_indices, &type_id);
         }
 
         // Output
@@ -269,7 +267,7 @@ static int op_decorate(struct shader_internal *s, const uint32_t *code)
             const uint32_t index = code[3];
             s->types[type_id].index = index;
             s->types[type_id].flag |= NGLI_SHADER_ATTRIBUTE;
-            s->variable_type_indices[s->nb_variables++] = type_id;
+            ngli_darray_push(&s->variable_type_indices, &type_id);
             break;
         }
 
@@ -334,6 +332,12 @@ struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
     struct shader_internal internal;
     memset(&internal, 0, sizeof(internal));
 
+    struct darray *variable_type_indices_array = &internal.variable_type_indices;
+    struct darray *block_type_indices_array = &internal.block_type_indices;
+
+    ngli_darray_init(variable_type_indices_array, sizeof(uint32_t), 0);
+    ngli_darray_init(block_type_indices_array, sizeof(uint32_t), 0);
+
     while (size > 0) {
         const uint32_t opcode0    = code[0];
         const uint16_t opcode     = opcode0 & 0xffff;
@@ -351,26 +355,31 @@ struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
         size -= instruction_size;
     }
 
+    const int nb_blocks    = ngli_darray_count(block_type_indices_array);
+    const int nb_variables = ngli_darray_count(variable_type_indices_array);
+    const uint32_t *block_type_indices    = ngli_darray_data(block_type_indices_array);
+    const uint32_t *variable_type_indices = ngli_darray_data(variable_type_indices_array);
+
     // allocate spirv_desc memory
-    uint32_t variable_bytes = internal.nb_variables * sizeof(struct spirv_variable);
-    uint32_t block_bytes = internal.nb_blocks * sizeof(struct spirv_block);
-    for (uint32_t i = 0; i < internal.nb_blocks; i++) {
-        const uint8_t block_type_id = internal.block_type_indices[i];
+    uint32_t variable_bytes = nb_variables * sizeof(struct spirv_variable);
+    uint32_t block_bytes = nb_blocks * sizeof(struct spirv_block);
+    for (uint32_t i = 0; i < nb_blocks; i++) {
+        const uint32_t block_type_id = block_type_indices[i];
         struct shader_type_internal *type = &internal.types[block_type_id];
         block_bytes += type->nb_variables * sizeof(struct spirv_variable);
     }
     uint32_t reflection_bytes = sizeof(struct spirv_desc) + variable_bytes + block_bytes;
-    uint8_t *allocation = malloc(reflection_bytes);
+    uint8_t *allocation = malloc(reflection_bytes); // XXX
 
     // initialize spirv_desc
-    struct spirv_desc *spirv_desc = (struct spirv_desc*)allocation;
-    spirv_desc->attributes = internal.nb_variables ? ngli_hmap_create() : NULL;
-    spirv_desc->bindings = internal.nb_blocks ? ngli_hmap_create() : NULL;
+    struct spirv_desc *spirv_desc = (struct spirv_desc *)allocation;
+    spirv_desc->attributes = nb_variables ? ngli_hmap_create() : NULL;
+    spirv_desc->bindings = nb_blocks ? ngli_hmap_create() : NULL;
 
     // initialize variables
     struct spirv_variable *variable = (struct spirv_variable*)(allocation + sizeof(struct spirv_desc));
-    for (uint32_t i = 0; i < internal.nb_variables; i++) {
-        const uint8_t variable_type_id = internal.variable_type_indices[i];
+    for (uint32_t i = 0; i < nb_variables; i++) {
+        const uint32_t variable_type_id = variable_type_indices[i];
         struct shader_type_internal *type = &internal.types[variable_type_id];
 
         variable->offset = type->index;
@@ -380,8 +389,8 @@ struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
 
     // initialize bindings
     struct spirv_binding *binding = (struct spirv_binding*)variable;
-    for (uint32_t i = 0; i < internal.nb_blocks; i++) {
-        const uint8_t block_type_id = internal.block_type_indices[i];
+    for (uint32_t i = 0; i < nb_blocks; i++) {
+        const uint32_t block_type_id = block_type_indices[i];
         struct shader_type_internal *type_internal = &internal.types[block_type_id];
 
         binding->index = type_internal->index;
@@ -416,6 +425,9 @@ struct spirv_desc *ngli_spirv_parse(const uint32_t *code, size_t size)
         ngli_hmap_set(spirv_desc->bindings, type_internal->name, binding);
         binding = (struct spirv_binding*)(((uint8_t*)binding) + binding_byte);
      }
+
+    ngli_darray_reset(&internal.variable_type_indices);
+    ngli_darray_reset(&internal.block_type_indices);
 
     return spirv_desc;
 }
