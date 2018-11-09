@@ -144,3 +144,14 @@ def simple_transition(cfg, transition_start=2, transition_duration=4):
     g.add_children(rf1, rf1_2, rf2)
 
     return g
+
+
+@scene()
+def slow_refresh(cfg):
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    media = ngl.Media(cfg.medias[0].filename)
+    tex = ngl.Texture2D(data_src=media)
+    render = ngl.Render(quad)
+    render.update_textures(tex0=tex)
+    rr = [ngl.TimeRangeModeRate(0, rate=(1, 5))]
+    return ngl.TimeRangeFilter(render, ranges=rr, mode='update')
