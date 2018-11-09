@@ -19,6 +19,7 @@
  * under the License.
  */
 
+#include <math.h>
 #include <float.h>
 #include <stddef.h>
 #include <string.h>
@@ -42,6 +43,7 @@ struct timerangefilter_priv {
 #define RANGES_TYPES_LIST (const int[]){NGL_NODE_TIMERANGEMODEONCE,     \
                                         NGL_NODE_TIMERANGEMODENOOP,     \
                                         NGL_NODE_TIMERANGEMODECONT,     \
+                                        NGL_NODE_TIMERANGEMODERATE,     \
                                         -1}
 
 #define OFFSET(x) offsetof(struct timerangefilter_priv, x)
@@ -195,6 +197,7 @@ static int timerangefilter_visit(struct ngl_node *node, int is_active, double t)
 static int timerangefilter_update(struct ngl_node *node, double t)
 {
     struct timerangefilter_priv *s = node->priv_data;
+    struct ngl_node *child = s->child;
 
     s->drawme = 0;
 
@@ -211,12 +214,16 @@ static int timerangefilter_update(struct ngl_node *node, double t)
                 return 0;
             t = rro->render_time;
             rro->updated = 1;
+
+        } else if (rr->class->id == NGL_NODE_TIMERANGEMODERATE) {
+            const struct timerangemode_priv *rrr = rr->priv_data;
+            if (child->last_update_time >= 0 && fabs(t - child->last_update_time) < rrr->rate_interval)
+                return 0;
         }
     }
 
     s->drawme = 1;
 
-    struct ngl_node *child = s->child;
     return ngli_node_update(child, t);
 }
 

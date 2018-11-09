@@ -45,6 +45,14 @@ static const struct node_param once_params[] = {
     {NULL}
 };
 
+static const struct node_param rate_params[] = {
+    {"start_time",  PARAM_TYPE_DBL, OFFSET(start_time), .flags = PARAM_FLAG_CONSTRUCTOR,
+                    .desc=NGLI_DOCSTRING("starting time for the scene to be drawn at a given rate")},
+    {"rate",        PARAM_TYPE_RATIONAL, OFFSET(rate),
+                    .desc=NGLI_DOCSTRING("maximum rate (in seconds) at which the scene is to be drawn (non-deterministic)")},
+    {NULL}
+};
+
 static char *timerangemode_info_str_continous(const struct ngl_node *node)
 {
     const struct timerangemode_priv *s = node->priv_data;
@@ -61,6 +69,20 @@ static char *timerangemode_info_str_once(const struct ngl_node *node)
 {
     const struct timerangemode_priv *s = node->priv_data;
     return ngli_asprintf("once at %g (with t=%g)", s->start_time, s->render_time);
+}
+
+static char *timerangemode_info_str_rate(const struct ngl_node *node)
+{
+    const struct timerangemode_priv *s = node->priv_data;
+    return ngli_asprintf("rate at %d/%d (with t=%g)", s->rate[0], s->rate[1], s->render_time);
+}
+
+static int timerangemode_rate_init(struct ngl_node *node)
+{
+    struct timerangemode_priv *s = node->priv_data;
+    if (s->rate[1])
+        s->rate_interval = s->rate[0] / (double)s->rate[1];
+    return 0;
 }
 
 const struct node_class ngli_timerangemodecont_class = {
@@ -87,5 +109,15 @@ const struct node_class ngli_timerangemodeonce_class = {
     .name      = "TimeRangeModeOnce",
     .priv_size = sizeof(struct timerangemode_priv),
     .params    = once_params,
+    .file      = __FILE__,
+};
+
+const struct node_class ngli_timerangemoderate_class = {
+    .id        = NGL_NODE_TIMERANGEMODERATE,
+    .name      = "TimeRangeModeRate",
+    .init      = timerangemode_rate_init,
+    .info_str  = timerangemode_info_str_rate,
+    .priv_size = sizeof(struct timerangemode_priv),
+    .params    = rate_params,
     .file      = __FILE__,
 };

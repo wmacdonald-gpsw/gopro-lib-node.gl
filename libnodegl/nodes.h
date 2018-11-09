@@ -464,7 +464,9 @@ struct media_priv {
 
 struct timerangemode_priv {
     double start_time;
-    double render_time;
+    double render_time;     // TimeRangeModeOnce only
+    int rate[2];            // TimeRangeModeRate only
+    double rate_interval;   // rate[0] / rate[1]
     int updated;
 };
 
