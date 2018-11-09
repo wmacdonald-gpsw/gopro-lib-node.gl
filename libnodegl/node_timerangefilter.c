@@ -36,6 +36,7 @@ struct timerangefilter_priv {
     int current_range;
     double prefetch_time;
     double max_idle_time;
+    int filter_mode;
 
     int drawme;
 };
@@ -47,6 +48,18 @@ struct timerangefilter_priv {
                                         -1}
 
 #define OFFSET(x) offsetof(struct timerangefilter_priv, x)
+#define FILTER_MODE_UPDATE (1 << 0)
+#define FILTER_MODE_DRAW   (1 << 1)
+
+static const struct param_choices filter_mode_choices = {
+    .name = "filter_mode",
+    .consts = {
+        {"update", FILTER_MODE_UPDATE, .desc=NGLI_DOCSTRING("update pass")},
+        {"draw",   FILTER_MODE_DRAW,   .desc=NGLI_DOCSTRING("draw pass")},
+        {NULL}
+    }
+};
+
 static const struct node_param timerangefilter_params[] = {
     {"child", PARAM_TYPE_NODE, OFFSET(child), .flags=PARAM_FLAG_CONSTRUCTOR,
               .desc=NGLI_DOCSTRING("time filtered scene")},
@@ -58,6 +71,9 @@ static const struct node_param timerangefilter_params[] = {
                       .desc=NGLI_DOCSTRING("`child` is prefetched `prefetch_time` seconds in advance")},
     {"max_idle_time", PARAM_TYPE_DBL, OFFSET(max_idle_time), {.dbl=4.0},
                       .desc=NGLI_DOCSTRING("`child` will not be released if it is required in the next incoming `max_idle_time` seconds")},
+    {"mode", PARAM_TYPE_FLAGS, OFFSET(filter_mode), {.i64=FILTER_MODE_UPDATE|FILTER_MODE_DRAW},
+             .choices=&filter_mode_choices,
+             .desc=NGLI_DOCSTRING("select which pass(es) should be filtered out")},
     {NULL}
 };
 
@@ -206,19 +222,20 @@ static int timerangefilter_update(struct ngl_node *node, double t)
         struct ngl_node *rr = s->ranges[rr_id];
 
         if (rr->class->id == NGL_NODE_TIMERANGEMODENOOP)
-            return 0;
+            return (s->filter_mode & FILTER_MODE_UPDATE) ? 0 : ngli_node_update(child, t);
 
         if (rr->class->id == NGL_NODE_TIMERANGEMODEONCE) {
             struct timerangemode_priv *rro = rr->priv_data;
+
             if (rro->updated)
-                return 0;
+                return (s->filter_mode & FILTER_MODE_UPDATE) ? 0 : ngli_node_update(child, t);
             t = rro->render_time;
             rro->updated = 1;
 
         } else if (rr->class->id == NGL_NODE_TIMERANGEMODERATE) {
             const struct timerangemode_priv *rrr = rr->priv_data;
             if (child->last_update_time >= 0 && fabs(t - child->last_update_time) < rrr->rate_interval)
-                return 0;
+                return (s->filter_mode & FILTER_MODE_UPDATE) ? 0 : ngli_node_update(child, t);
         }
     }
 
@@ -231,7 +248,7 @@ static void timerangefilter_draw(struct ngl_node *node)
 {
     struct timerangefilter_priv *s = node->priv_data;
 
-    if (!s->drawme) {
+    if (!s->drawme && (s->filter_mode & FILTER_MODE_DRAW)) {
         TRACE("%s @ %p not marked for drawing, skip it", node->label, node);
         return;
     }

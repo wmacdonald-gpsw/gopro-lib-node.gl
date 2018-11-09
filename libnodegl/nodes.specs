@@ -351,6 +351,7 @@
         - [ranges, NodeList]
         - [prefetch_time, double]
         - [max_idle_time, double]
+        - [mode, flags]
 
 - TimeRangeModeCont:
     constructors:

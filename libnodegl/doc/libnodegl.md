@@ -486,6 +486,7 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 `ranges` |  |  | [`NodeList`](#parameter-types) ([TimeRangeModeOnce](#timerangemodeonce), [TimeRangeModeNoop](#timerangemodenoop), [TimeRangeModeCont](#timerangemodecont), [TimeRangeModeRate](#timerangemoderate)) | key frame time filtering events | 
 `prefetch_time` |  |  | [`double`](#parameter-types) | `child` is prefetched `prefetch_time` seconds in advance | `1`
 `max_idle_time` |  |  | [`double`](#parameter-types) | `child` will not be released if it is required in the next incoming `max_idle_time` seconds | `4`
+`mode` |  |  | [`filter_mode`](#filter_mode-choices) | select which pass(es) should be filtered out | `update+draw`
 
 
 **Source**: [node_timerangefilter.c](/libnodegl/node_timerangefilter.c)
@@ -942,3 +943,10 @@ Constant | Description
 `read_only` | read only
 `write_only` | write only
 `read_write` | read-write
+
+## filter_mode choices
+
+Constant | Description
+-------- | -----------
+`update` | update pass
+`draw` | draw pass
