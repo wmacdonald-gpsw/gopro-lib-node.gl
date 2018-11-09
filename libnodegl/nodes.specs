@@ -366,6 +366,12 @@
         - [start_time, double]
         - [render_time, double]
 
+- TimeRangeModeRate:
+    constructors:
+        - [start_time, double]
+    optional:
+        - [rate, rational]
+
 - Transform:
     constructors:
         - [child, Node]

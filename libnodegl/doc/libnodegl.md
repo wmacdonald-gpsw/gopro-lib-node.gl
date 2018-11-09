@@ -484,7 +484,7 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 Parameter | Ctor. | Live-chg. | Type | Description | Default
 --------- | :---: | :-------: | ---- | ----------- | :-----:
 `child` | ✓ |  | [`Node`](#parameter-types) | time filtered scene | 
-`ranges` |  |  | [`NodeList`](#parameter-types) ([TimeRangeModeOnce](#timerangemodeonce), [TimeRangeModeNoop](#timerangemodenoop), [TimeRangeModeCont](#timerangemodecont)) | key frame time filtering events | 
+`ranges` |  |  | [`NodeList`](#parameter-types) ([TimeRangeModeOnce](#timerangemodeonce), [TimeRangeModeNoop](#timerangemodenoop), [TimeRangeModeCont](#timerangemodecont), [TimeRangeModeRate](#timerangemoderate)) | key frame time filtering events | 
 `prefetch_time` |  |  | [`double`](#parameter-types) | `child` is prefetched `prefetch_time` seconds in advance | `1`
 `max_idle_time` |  |  | [`double`](#parameter-types) | `child` will not be released if it is required in the next incoming `max_idle_time` seconds | `4`
 
@@ -518,6 +518,17 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 --------- | :---: | :-------: | ---- | ----------- | :-----:
 `start_time` | ✓ |  | [`double`](#parameter-types) | starting time for the scene to be drawn once | `0`
 `render_time` | ✓ |  | [`double`](#parameter-types) | chosen time to draw | `0`
+
+
+**Source**: [node_timerangemodes.c](/libnodegl/node_timerangemodes.c)
+
+
+## TimeRangeModeRate
+
+Parameter | Ctor. | Live-chg. | Type | Description | Default
+--------- | :---: | :-------: | ---- | ----------- | :-----:
+`start_time` | ✓ |  | [`double`](#parameter-types) | starting time for the scene to be drawn at a given rate | `0`
+`rate` |  |  | [`rational`](#parameter-types) | maximum rate (in seconds) at which the scene is to be drawn (non-deterministic) | 
 
 
 **Source**: [node_timerangemodes.c](/libnodegl/node_timerangemodes.c)
