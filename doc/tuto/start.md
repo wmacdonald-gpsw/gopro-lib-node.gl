@@ -451,7 +451,7 @@ def test_timeranges(cfg):
     # Associate a different color for each shape
     for r in renders:
         color = [random.random() for i in range(3)] + [1]
-        r.update_uniforms(color=UniformVec4(value=color))
+        r.update_uniforms(color=ngl.UniformVec4(value=color))
 
     # Move them in different places
     translates = [
