@@ -430,3 +430,9 @@
         - [value, vec4]
         - [anim, Node]
 
+- UserFilter:
+    constructors:
+        - [child, Node]
+    optional:
+        - [enabled, bool]
+

@@ -648,6 +648,17 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 
 **Source**: [node_uniform.c](/libnodegl/node_uniform.c)
 
+
+## UserFilter
+
+Parameter | Ctor. | Live-chg. | Type | Description | Default
+--------- | :---: | :-------: | ---- | ----------- | :-----:
+`child` | ✓ |  | [`Node`](#parameter-types) | filtered scene | 
+`enabled` |  | ✓ | [`bool`](#parameter-types) | set if the scene below should be rendered | `1`
+
+
+**Source**: [node_userfilter.c](/libnodegl/node_userfilter.c)
+
 Parameter types
 ===============
 

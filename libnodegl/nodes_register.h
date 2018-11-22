@@ -99,5 +99,6 @@
     action(NGL_NODE_UNIFORMVEC3,            ngli_uniformvec3_class)             \
     action(NGL_NODE_UNIFORMVEC4,            ngli_uniformvec4_class)             \
     action(NGL_NODE_UNIFORMQUAT,            ngli_uniformquat_class)             \
+    action(NGL_NODE_USERFILTER,             ngli_userfilter_class)              \
 
 #endif
