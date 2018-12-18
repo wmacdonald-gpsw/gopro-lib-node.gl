@@ -96,7 +96,7 @@ static int glcontext_choose_platform(int platform)
         return platform;
 
 #if defined(TARGET_LINUX)
-    return NGL_PLATFORM_XLIB;
+    return NGL_PLATFORM_WAYLAND;
 #elif defined(TARGET_IPHONE)
     return NGL_PLATFORM_IOS;
 #elif defined(TARGET_DARWIN)
