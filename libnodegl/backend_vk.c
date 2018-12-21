@@ -890,7 +890,7 @@ static int vulkan_init(struct glcontext *vk, uintptr_t display, uintptr_t window
     return 0;
 }
 
-static void vulkan_swap_buffers(struct glcontext *vk)
+static VkResult vulkan_swap_buffers(struct glcontext *vk)
 {
     VkSemaphore wait_sem[] = {vk->sem_img_avail[vk->current_frame]};
     VkSemaphore sig_sem[] = {vk->sem_render_finished[vk->current_frame]};
@@ -933,6 +933,7 @@ static void vulkan_swap_buffers(struct glcontext *vk)
     }
 
     vk->current_frame = (vk->current_frame + 1) % vk->nb_in_flight_frames;
+    return ret;
 }
 
 static void cleanup_swapchain(struct glcontext *vk)
@@ -1134,7 +1135,8 @@ static int vk_post_draw(struct ngl_ctx *s, double t, int ret)
 {
     struct glcontext *vk = s->glcontext;
 
-    vulkan_swap_buffers(vk);
+    if (vulkan_swap_buffers(vk) != VK_SUCCESS)
+        return -1;
     return ret;
 }
 
@@ -1157,7 +1159,7 @@ int ngli_vk_find_memory_type(struct glcontext *vk, uint32_t type_filter, VkMemor
 
 const struct backend ngli_backend_vk = {
     .name         = "Vulkan",
-    .int_cfg_dp   = 1,
+    //.int_cfg_dp   = 1,
     .reconfigure  = vk_reconfigure,
     .configure    = vk_configure,
     .pre_draw     = vk_pre_draw,

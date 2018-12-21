@@ -101,8 +101,6 @@ static int cmd_prepare_draw(struct ngl_ctx *s, void *arg)
 {
     const double t = *(double *)arg;
 
-    s->backend->pre_draw(s);
-
     struct ngl_node *scene = s->scene;
     if (!scene) {
         return 0;
@@ -130,7 +128,11 @@ static int cmd_draw(struct ngl_ctx *s, void *arg)
 {
     const double t = *(double *)arg;
 
-    int ret = cmd_prepare_draw(s, arg);
+    int ret = s->backend->pre_draw(s);
+    if (ret < 0)
+        return ret;
+
+    ret = cmd_prepare_draw(s, arg);
     if (ret < 0)
         goto end;
 
@@ -139,8 +141,12 @@ static int cmd_draw(struct ngl_ctx *s, void *arg)
         ngli_node_draw(s->scene);
     }
 
-end:
-    return s->backend->post_draw(s, t, ret);
+end:;
+    int end_ret = s->backend->post_draw(s, t, ret);
+    if (end_ret < 0)
+        return end_ret;
+
+    return ret;
 }
 
 static int cmd_stop(struct ngl_ctx *s, void *arg)
