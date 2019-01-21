@@ -164,6 +164,9 @@ static int cmd_stop(struct ngl_ctx *s, void *arg)
 
 static int dispatch_cmd(struct ngl_ctx *s, cmd_func_type cmd_func, void *arg)
 {
+    if (!s->thread)
+        return cmd_func(s, arg);
+
     pthread_mutex_lock(&s->lock);
     s->cmd_func = cmd_func;
     s->cmd_arg = arg;
@@ -242,21 +245,24 @@ static void stop_thread(struct ngl_ctx *s)
     pthread_mutex_destroy(&s->lock);
 }
 
-struct ngl_ctx *ngl_create(void)
+struct ngl_ctx *ngli_create(int thread)
 {
     struct ngl_ctx *s = ngli_calloc(1, sizeof(*s));
     if (!s)
         return NULL;
 
-    if (pthread_mutex_init(&s->lock, NULL) ||
-        pthread_cond_init(&s->cond_ctl, NULL) ||
-        pthread_cond_init(&s->cond_wkr, NULL) ||
-        pthread_create(&s->worker_tid, NULL, worker_thread, s)) {
-        pthread_cond_destroy(&s->cond_ctl);
-        pthread_cond_destroy(&s->cond_wkr);
-        pthread_mutex_destroy(&s->lock);
-        ngli_free(s);
-        return NULL;
+    if (thread) {
+        if (pthread_mutex_init(&s->lock, NULL) ||
+            pthread_cond_init(&s->cond_ctl, NULL) ||
+            pthread_cond_init(&s->cond_wkr, NULL) ||
+            pthread_create(&s->worker_tid, NULL, worker_thread, s)) {
+            pthread_cond_destroy(&s->cond_ctl);
+            pthread_cond_destroy(&s->cond_wkr);
+            pthread_mutex_destroy(&s->lock);
+            ngli_free(s);
+            return NULL;
+        }
+        s->thread = 1;
     }
 
     ngli_darray_init(&s->modelview_matrix_stack, 4 * 4 * sizeof(float), 1);
@@ -276,6 +282,11 @@ struct ngl_ctx *ngl_create(void)
 fail:
     ngl_freep(&s);
     return NULL;
+}
+
+struct ngl_ctx *ngl_create(void)
+{
+    return ngli_create(1);
 }
 
 #if defined(TARGET_IPHONE) || defined(TARGET_ANDROID)
@@ -404,7 +415,8 @@ void ngl_freep(struct ngl_ctx **ss)
     if (s->configured)
         ngl_set_scene(s, NULL);
 
-    stop_thread(s);
+    if (s->thread)
+        stop_thread(s);
     ngli_darray_reset(&s->modelview_matrix_stack);
     ngli_darray_reset(&s->projection_matrix_stack);
     ngli_darray_reset(&s->activitycheck_nodes);
