@@ -106,6 +106,7 @@
         - [stride, int]
         - [usage, select]
         - [update_interval, rational]
+        - [time_anim, Node]
 
 - BufferByte: _Buffer
 

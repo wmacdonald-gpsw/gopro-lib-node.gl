@@ -74,6 +74,9 @@ static const struct node_param buffer_params[] = {
                .choices=&usage_choices},
     {"update_interval", PARAM_TYPE_RATIONAL, OFFSET(update_interval), {.r={0, 1}},
                .desc=NGLI_DOCSTRING("interval at which the data will be updated")},
+    {"time_anim", PARAM_TYPE_NODE, OFFSET(time_anim),
+               .node_types=(const int[]){NGL_NODE_ANIMATEDFLOAT, -1},
+               .desc=NGLI_DOCSTRING("time remapping animation (must use a `linear` interpolation)")},
     {NULL}
 };
 
@@ -311,16 +314,41 @@ static int buffer_init(struct ngl_node *node)
 
 static int buffer_update(struct ngl_node *node, double t)
 {
-    struct ngl_ctx *ctx = node->ctx;
-    struct glcontext *glcontext = ctx->glcontext;
-    const struct glfunctions *gl = &glcontext->funcs;
-
     struct buffer_priv *s = node->priv_data;
+    struct ngl_node *anode = s->time_anim;
 
     if (!s->update_interval[0])
         return 0;
 
-    int i = t * s->update_interval[1] / s->update_interval[0];
+    double rt = t;
+    if (anode) {
+        struct animation_priv *anim = anode->priv_data;
+
+        if (anim->nb_animkf >= 1) {
+            const struct animkeyframe_priv *kf0 = anim->animkf[0]->priv_data;
+            const double initial_seek = kf0->scalar;
+
+            if (anim->nb_animkf == 1) {
+                rt = t - kf0->time;
+            } else {
+                int ret = ngli_node_update(anode, t);
+                if (ret < 0)
+                    return ret;
+                rt = anim->scalar;
+            }
+
+            LOG(VERBOSE, "remapped time f(%g)=%g (%g without initial seek)",
+                t, rt, rt - initial_seek);
+            if (rt < initial_seek) {
+                LOG(ERROR, "invalid remapped time %g", rt);
+                return -1;
+            }
+
+            rt -= initial_seek;
+        }
+    }
+
+    int i = rt * s->update_interval[1] / s->update_interval[0] + 1E-6;
     size_t offset = i * s->data_chunk_size;
     size_t end = s->data_size - s->data_chunk_size;
 

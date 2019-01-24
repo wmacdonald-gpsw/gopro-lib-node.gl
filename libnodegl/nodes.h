@@ -245,6 +245,8 @@ struct buffer_priv {
     uint8_t *data_chunk;
     int data_chunk_size;
 
+    struct ngl_node *time_anim;
+
     /* animatedbuffer */
     struct ngl_node **animkf;
     int nb_animkf;
