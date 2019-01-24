@@ -411,6 +411,7 @@ struct media_priv {
     int max_nb_frames;
     int max_nb_sink;
     int max_pixels;
+    char *filters;
 
     struct sxplayer_ctx *player;
     struct sxplayer_frame *frame;
