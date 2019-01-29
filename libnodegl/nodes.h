@@ -169,6 +169,46 @@ struct graphicconfig_priv {
     struct glstate states[2];
 };
 
+struct async_output_priv {
+    struct fbo fbo;
+    struct texture color;
+    struct texture depth;
+    struct image image;
+    int locked;
+    GLsync sync;
+};
+
+struct async_priv {
+    struct ngl_node *child;
+    int width;
+    int height;
+    int features;
+    int format;
+    GLenum min_filter;
+    GLenum mag_filter;
+    GLenum wrap_s;
+    GLenum wrap_t;
+
+    struct ngl_ctx *ngl_ctx;
+    struct ngl_config ngl_config;
+
+    int state;
+    double last_update_time;
+
+    struct async_output_priv outputs[2];
+    struct async_output_priv *front_output;
+    int back_output_index;
+    pthread_cond_t output_cond;
+    pthread_mutex_t output_lock;
+
+    pthread_t worker_tid;
+    pthread_mutex_t worker_lock;
+    pthread_cond_t worker_cond;
+};
+
+const struct image *ngli_node_async_acquire_image(struct ngl_node *node);
+void ngli_node_async_release_image(struct ngl_node *node);
+
 struct camera_priv {
     struct ngl_node *child;
     float eye[3];

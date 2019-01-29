@@ -157,6 +157,24 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 **Source**: [node_animkeyframe.c](/libnodegl/node_animkeyframe.c)
 
 
+## Async
+
+Parameter | Ctor. | Live-chg. | Type | Description | Default
+--------- | :---: | :-------: | ---- | ----------- | :-----:
+`child` | ✓ |  | [`Node`](#parameter-types) | scene to be render asynchronously | 
+`width` | ✓ |  | [`int`](#parameter-types) | width of the target framebuffers | `0`
+`height` | ✓ |  | [`int`](#parameter-types) | height of the target framebuffers | `0`
+`features` |  |  | [`framebuffer_features`](#framebuffer_features-choices) | framebuffer feature mask | `0`
+`format` |  |  | [`format`](#format-choices) | format of the pixel data | `r8g8b8a8_unorm`
+`min_filter` |  |  | [`min_filter`](#min_filter-choices) | texture minifying function | `nearest`
+`mag_filter` |  |  | [`mag_filter`](#mag_filter-choices) | texture magnification function | `nearest`
+`wrap_s` |  |  | [`wrap`](#wrap-choices) | wrap parameter for the texture on the s dimension (horizontal) | `clamp_to_edge`
+`wrap_t` |  |  | [`wrap`](#wrap-choices) | wrap parameter for the texture on the t dimension (vertical) | `clamp_to_edge`
+
+
+**Source**: [node_async.c](/libnodegl/node_async.c)
+
+
 ## Buffer*
 
 Parameter | Ctor. | Live-chg. | Type | Description | Default
@@ -386,7 +404,7 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 --------- | :---: | :-------: | ---- | ----------- | :-----:
 `geometry` | ✓ |  | [`Node`](#parameter-types) ([Circle](#circle), [Geometry](#geometry), [Quad](#quad), [Triangle](#triangle)) | geometry to be rasterized | 
 `program` |  |  | [`Node`](#parameter-types) ([Program](#program)) | program to be executed | 
-`textures` |  |  | [`NodeDict`](#parameter-types) ([Texture2D](#texture2d), [Texture3D](#texture3d)) | textures made accessible to the `program` | 
+`textures` |  |  | [`NodeDict`](#parameter-types) ([Texture2D](#texture2d), [Texture3D](#texture3d), [Async](#async)) | textures made accessible to the `program` | 
 `uniforms` |  |  | [`NodeDict`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer), [UniformFloat](#uniformfloat), [UniformVec2](#uniformvec2), [UniformVec3](#uniformvec3), [UniformVec4](#uniformvec4), [UniformQuat](#uniformquat), [UniformInt](#uniformint), [UniformMat4](#uniformmat4)) | uniforms made accessible to the `program` | 
 `buffers` |  |  | [`NodeDict`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer), [BufferInt](#buffer), [BufferIVec2](#buffer), [BufferIVec3](#buffer), [BufferIVec4](#buffer), [BufferUInt](#buffer), [BufferUIVec2](#buffer), [BufferUIVec3](#buffer), [BufferUIVec4](#buffer)) | buffers made accessible to the `program` | 
 `attributes` |  |  | [`NodeDict`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer)) | extra vertex attributes made accessible to the `program` | 
@@ -719,6 +737,105 @@ Constant | Description
 `back_in_out` | combination of `back_in` then `back_out`
 `back_out_in` | combination of `back_out` then `back_in`
 
+## framebuffer_features choices
+
+Constant | Description
+-------- | -----------
+`depth` | depth
+`stencil` | stencil
+
+## format choices
+
+Constant | Description
+-------- | -----------
+`undefined` | undefined
+`r8_unorm` | 8-bit unsigned normalized R component
+`r8_snorm` | 8-bit signed normalized R component
+`r8_uint` | 8-bit unsigned integer R component
+`r8_sint` | 8-bit signed integer R component
+`r8g8_unorm` | 8-bit unsigned normalized RG components
+`r8g8_snorm` | 8-bit signed normalized RG components
+`r8g8_uint` | 8-bit unsigned integer RG components
+`r8g8_sint` | 8-bit signed normalized RG components
+`r8g8b8_unorm` | 8-bit unsigned normalized RGB components
+`r8g8b8_snorm` | 8-bit signed normalized RGB components
+`r8g8b8_uint` | 8-bit unsigned integer RGB components
+`r8g8b8_sint` | 8-bit signed integer RGB components
+`r8g8b8_srgb` | 8-bit unsigned normalized sRGB components
+`r8g8b8a8_unorm` | 8-bit unsigned normalized RGBA components
+`r8g8b8a8_snorm` | 8-bit signed normalized RGBA components
+`r8g8b8a8_uint` | 8-bit unsigned integer RGBA components
+`r8g8b8a8_sint` | 8-bit signed integer RGBA components
+`r8g8b8a8_srgb` | 8-bit unsigned normalized RGBA components
+`b8g8r8a8_unorm` | 8-bit unsigned normalized BGRA components
+`b8g8r8a8_snorm` | 8-bit signed normalized BGRA components
+`b8g8r8a8_uint` | 8-bit unsigned integer BGRA components
+`b8g8r8a8_sint` | 8-bit signed integer BGRA components
+`r16_unorm` | 16-bit unsigned normalized R component
+`r16_snorm` | 16-bit signed normalized R component
+`r16_uint` | 16-bit unsigned integer R component
+`r16_sint` | 16-bit signed integer R component
+`r16_sfloat` | 16-bit signed float R component
+`r16g16_unorm` | 16-bit unsigned normalized RG components
+`r16g16_snorm` | 16-bit signed normalized RG components
+`r16g16_uint` | 16-bit unsigned integer RG components
+`r16g16_sint` | 16-bit signed integer RG components
+`r16g16_sfloat` | 16-bit signed float RG components
+`r16g16b16_unorm` | 16-bit unsigned normalized RGB components
+`r16g16b16_snorm` | 16-bit signed normalized RGB components
+`r16g16b16_uint` | 16-bit unsigned integer RGB components
+`r16g16b16_sint` | 16-bit signed integer RGB components
+`r16g16b16_sfloat` | 16-bit signed float RGB components
+`r16g16b16a16_unorm` | 16-bit unsigned normalized RGBA components
+`r16g16b16a16_snorm` | 16-bit signed normalized RGBA components
+`r16g16b16a16_uint` | 16-bit unsigned integer RGBA components
+`r16g16b16a16_sint` | 16-bit signed integer RGBA components
+`r16g16b16a16_sfloat` | 16-bit signed float RGBA components
+`r32_uint` | 32-bit unsigned integer R component
+`r32_sint` | 32-bit signed integer R component
+`r32_sfloat` | 32-bit signed float R component
+`r32g32_uint` | 32-bit unsigned integer RG components
+`r32g32_sint` | 32-bit signed integer RG components
+`r32g32_sfloat` | 32-bit signed float RG components
+`r32g32b32_uint` | 32-bit unsigned integer RGB components
+`r32g32b32_sint` | 32-bit signed integer RGB components
+`r32g32b32_sfloat` | 32-bit signed float RGB components
+`r32g32b32a32_uint` | 32-bit unsigned integer RGBA components
+`r32g32b32a32_sint` | 32-bit signed integer RGBA components
+`r32g32b32a32_sfloat` | 32-bit signed float RGBA components
+`d16_unorm` | 16-bit unsigned normalized depth component
+`d24_unorm` | 32-bit packed format that has 24-bit unsigned normalized depth component + 8-bit of unused data
+`d32_sfloat` | 32-bit signed float depth component
+`d24_unorm_s8_uint` | 32-bit packed format that has 24-bit unsigned normalized depth component + 8-bit unsigned integer stencil component
+`d32_sfloat_s8_uint` | 64-bit packed format that has 32-bit signed float depth component + 8-bit unsigned integer stencil component + 24-bit of unused data
+`s8_uint` | 8-bit unsigned integer stencil component
+
+## min_filter choices
+
+Constant | Description
+-------- | -----------
+`nearest` | nearest filtering
+`linear` | linear filtering
+`nearest_mipmap_nearest` | nearest filtering, nearest mipmap filtering
+`linear_mipmap_nearest` | linear filtering, nearest mipmap filtering
+`nearest_mipmap_linear` | nearest filtering, linear mipmap filtering
+`linear_mipmap_linear` | linear filtering, linear mipmap filtering
+
+## mag_filter choices
+
+Constant | Description
+-------- | -----------
+`nearest` | nearest filtering
+`linear` | linear filtering
+
+## wrap choices
+
+Constant | Description
+-------- | -----------
+`clamp_to_edge` | clamp to edge wrapping
+`mirrored_repeat` | mirrored repeat wrapping
+`repeat` | repeat pattern wrapping
+
 ## buffer_usage choices
 
 Constant | Description
@@ -825,105 +942,6 @@ Constant | Description
 `info` | informational messages
 `warning` | warning messages
 `error` | error messages
-
-## framebuffer_features choices
-
-Constant | Description
--------- | -----------
-`depth` | depth
-`stencil` | stencil
-
-## format choices
-
-Constant | Description
--------- | -----------
-`undefined` | undefined
-`r8_unorm` | 8-bit unsigned normalized R component
-`r8_snorm` | 8-bit signed normalized R component
-`r8_uint` | 8-bit unsigned integer R component
-`r8_sint` | 8-bit signed integer R component
-`r8g8_unorm` | 8-bit unsigned normalized RG components
-`r8g8_snorm` | 8-bit signed normalized RG components
-`r8g8_uint` | 8-bit unsigned integer RG components
-`r8g8_sint` | 8-bit signed normalized RG components
-`r8g8b8_unorm` | 8-bit unsigned normalized RGB components
-`r8g8b8_snorm` | 8-bit signed normalized RGB components
-`r8g8b8_uint` | 8-bit unsigned integer RGB components
-`r8g8b8_sint` | 8-bit signed integer RGB components
-`r8g8b8_srgb` | 8-bit unsigned normalized sRGB components
-`r8g8b8a8_unorm` | 8-bit unsigned normalized RGBA components
-`r8g8b8a8_snorm` | 8-bit signed normalized RGBA components
-`r8g8b8a8_uint` | 8-bit unsigned integer RGBA components
-`r8g8b8a8_sint` | 8-bit signed integer RGBA components
-`r8g8b8a8_srgb` | 8-bit unsigned normalized RGBA components
-`b8g8r8a8_unorm` | 8-bit unsigned normalized BGRA components
-`b8g8r8a8_snorm` | 8-bit signed normalized BGRA components
-`b8g8r8a8_uint` | 8-bit unsigned integer BGRA components
-`b8g8r8a8_sint` | 8-bit signed integer BGRA components
-`r16_unorm` | 16-bit unsigned normalized R component
-`r16_snorm` | 16-bit signed normalized R component
-`r16_uint` | 16-bit unsigned integer R component
-`r16_sint` | 16-bit signed integer R component
-`r16_sfloat` | 16-bit signed float R component
-`r16g16_unorm` | 16-bit unsigned normalized RG components
-`r16g16_snorm` | 16-bit signed normalized RG components
-`r16g16_uint` | 16-bit unsigned integer RG components
-`r16g16_sint` | 16-bit signed integer RG components
-`r16g16_sfloat` | 16-bit signed float RG components
-`r16g16b16_unorm` | 16-bit unsigned normalized RGB components
-`r16g16b16_snorm` | 16-bit signed normalized RGB components
-`r16g16b16_uint` | 16-bit unsigned integer RGB components
-`r16g16b16_sint` | 16-bit signed integer RGB components
-`r16g16b16_sfloat` | 16-bit signed float RGB components
-`r16g16b16a16_unorm` | 16-bit unsigned normalized RGBA components
-`r16g16b16a16_snorm` | 16-bit signed normalized RGBA components
-`r16g16b16a16_uint` | 16-bit unsigned integer RGBA components
-`r16g16b16a16_sint` | 16-bit signed integer RGBA components
-`r16g16b16a16_sfloat` | 16-bit signed float RGBA components
-`r32_uint` | 32-bit unsigned integer R component
-`r32_sint` | 32-bit signed integer R component
-`r32_sfloat` | 32-bit signed float R component
-`r32g32_uint` | 32-bit unsigned integer RG components
-`r32g32_sint` | 32-bit signed integer RG components
-`r32g32_sfloat` | 32-bit signed float RG components
-`r32g32b32_uint` | 32-bit unsigned integer RGB components
-`r32g32b32_sint` | 32-bit signed integer RGB components
-`r32g32b32_sfloat` | 32-bit signed float RGB components
-`r32g32b32a32_uint` | 32-bit unsigned integer RGBA components
-`r32g32b32a32_sint` | 32-bit signed integer RGBA components
-`r32g32b32a32_sfloat` | 32-bit signed float RGBA components
-`d16_unorm` | 16-bit unsigned normalized depth component
-`d24_unorm` | 32-bit packed format that has 24-bit unsigned normalized depth component + 8-bit of unused data
-`d32_sfloat` | 32-bit signed float depth component
-`d24_unorm_s8_uint` | 32-bit packed format that has 24-bit unsigned normalized depth component + 8-bit unsigned integer stencil component
-`d32_sfloat_s8_uint` | 64-bit packed format that has 32-bit signed float depth component + 8-bit unsigned integer stencil component + 24-bit of unused data
-`s8_uint` | 8-bit unsigned integer stencil component
-
-## min_filter choices
-
-Constant | Description
--------- | -----------
-`nearest` | nearest filtering
-`linear` | linear filtering
-`nearest_mipmap_nearest` | nearest filtering, nearest mipmap filtering
-`linear_mipmap_nearest` | linear filtering, nearest mipmap filtering
-`nearest_mipmap_linear` | nearest filtering, linear mipmap filtering
-`linear_mipmap_linear` | linear filtering, linear mipmap filtering
-
-## mag_filter choices
-
-Constant | Description
--------- | -----------
-`nearest` | nearest filtering
-`linear` | linear filtering
-
-## wrap choices
-
-Constant | Description
--------- | -----------
-`clamp_to_edge` | clamp to edge wrapping
-`mirrored_repeat` | mirrored repeat wrapping
-`repeat` | repeat pattern wrapping
 
 ## access choices
 

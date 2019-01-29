@@ -186,6 +186,38 @@ static int update_sampler(const struct glcontext *gl,
     return 0;
 }
 
+static const struct image *acquire_image(struct ngl_node *node)
+{
+    switch (node->class->id) {
+    case NGL_NODE_TEXTURE2D:
+    case NGL_NODE_TEXTURE3D: {
+        struct texture_priv *priv = node->priv_data;
+        return &priv->image;
+    }
+    case NGL_NODE_ASYNC: {
+        return ngli_node_async_acquire_image(node);
+    }
+    default:
+        ngli_assert(0);
+    }
+}
+
+static void release_image(struct ngl_node *node)
+{
+    switch (node->class->id) {
+    case NGL_NODE_TEXTURE2D:
+    case NGL_NODE_TEXTURE3D: {
+        return;
+    }
+    case NGL_NODE_ASYNC: {
+        ngli_node_async_release_image(node);
+        break;
+    }
+    default:
+        ngli_assert(0);
+    }
+}
+
 static int update_images_and_samplers(struct ngl_node *node)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -203,8 +235,7 @@ static int update_images_and_samplers(struct ngl_node *node)
         for (int i = 0; i < ngli_darray_count(texture_pairs); i++) {
             const struct nodeprograminfopair *pair = &pairs[i];
             const struct textureprograminfo *info = pair->program_info;
-            const struct texture_priv *texture = pair->node->priv_data;
-            const struct image *image = &texture->image;
+            const struct image *image = acquire_image(pair->node);
 
             int sampling_mode;
             int ret = update_sampler(gl, s, image, info, &used_texture_units, &sampling_mode);
@@ -233,6 +264,8 @@ static int update_images_and_samplers(struct ngl_node *node)
 
             if (info->ts_location >= 0)
                 ngli_glUniform1f(gl, info->ts_location, image->ts);
+
+            release_image(pair->node);
         }
     }
 

@@ -98,6 +98,19 @@
         - [easing_start_offset, double]
         - [easing_end_offset, double]
 
+- Async:
+    constructors:
+        - [child, Node]
+        - [width, int]
+        - [height, int]
+    optional:
+        - [features, flags]
+        - [format, select]
+        - [min_filter, select]
+        - [mag_filter, select]
+        - [wrap_s, select]
+        - [wrap_t, select]
+
 - _Buffer:
     optional:
         - [count, int]

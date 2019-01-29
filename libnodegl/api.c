@@ -213,6 +213,7 @@ static int cmd_make_current(struct ngl_ctx *s, void *arg)
 #define DONE_CURRENT &(int[]){0}
 static int reconfigure_ios(struct ngl_ctx *s, struct ngl_config *config)
 {
+    /* FIXME: ios async */
     int ret = dispatch_cmd(s, cmd_make_current, DONE_CURRENT);
     if (ret < 0)
         return ret;
@@ -230,9 +231,15 @@ static int configure_ios(struct ngl_ctx *s, struct ngl_config *config)
     int ret = cmd_configure(s, config);
     if (ret < 0)
         return ret;
-    cmd_make_current(s, DONE_CURRENT);
 
-    return dispatch_cmd(s, cmd_make_current, MAKE_CURRENT);
+    if (s->thread) {
+        cmd_make_current(s, DONE_CURRENT);
+        ret = dispatch_cmd(s, cmd_make_current, MAKE_CURRENT);
+    } else {
+        cmd_make_current(s, MAKE_CURRENT);
+    }
+
+    return ret;
 }
 #endif
 
