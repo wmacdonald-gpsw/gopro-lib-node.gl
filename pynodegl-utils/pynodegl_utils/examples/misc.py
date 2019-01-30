@@ -634,3 +634,39 @@ def mountain(cfg, ndim=3, nb_layers=7,
                               blend_src_factor_a='zero',
                               blend_dst_factor_a='one')
     return blend
+
+
+@scene()
+def async(cfg):
+    '''Async test scene'''
+    m0 = cfg.medias[0]
+    cfg.duration = 5.
+    cfg.aspect_ratio = (m0.width, m0.height)
+
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    render = ngl.Render(quad)
+    media = ngl.Media(m0.filename)
+    texture = ngl.Texture2D(data_src=media)
+    render.update_textures(tex0=texture)
+
+    render_async = ngl.Async(render, width=512, height=512, min_filter='linear', mag_filter='linear')
+
+    group = ngl.Group()
+
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    render = ngl.Render(quad)
+    render.update_textures(tex0=render_async)
+    group.add_children(render)
+
+    quad = ngl.Quad((-0.25, -0.25, 0), (0.5, 0, 0), (0, 0.5, 0))
+    program = ngl.Program(fragment=cfg.get_frag('color'))
+    render = ngl.Render(quad, program)
+    render.update_uniforms(color=ngl.UniformVec4(value=(0, 0.8, 0, 1.0)))
+    animkf = [ngl.AnimKeyFrameFloat(0, 0),
+              ngl.AnimKeyFrameFloat(  cfg.duration/3.,   -360/3., 'exp_in_out'),
+              ngl.AnimKeyFrameFloat(2*cfg.duration/3., -2*360/3., 'exp_in_out'),
+              ngl.AnimKeyFrameFloat(  cfg.duration,      -360,    'exp_in_out')]
+    rotate = ngl.Rotate(render, anim=ngl.AnimatedFloat(animkf))
+    group.add_children(rotate)
+
+    return group
