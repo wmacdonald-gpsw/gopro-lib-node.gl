@@ -271,14 +271,19 @@ static int gl_reconfigure(struct ngl_ctx *s, const struct ngl_config *config)
     current_config->width = config->width;
     current_config->height = config->height;
 
+    const int update_capture = current_config->capture_buffer != config->capture_buffer;
+    current_config->capture_buffer = config->capture_buffer;
+
     if (config->offscreen) {
         if (update_dimensions) {
             gl_offscreen_fbo_reset(s);
             int ret = gl_offscreen_fbo_init(s);
             if (ret < 0)
                 return 0;
+        }
+        if (update_dimensions || update_capture) {
             gl_offscreen_capture_reset(s);
-            ret = gl_offscreen_capture_init(s);
+            int ret = gl_offscreen_capture_init(s);
             if (ret < 0)
                 return ret;
         }
