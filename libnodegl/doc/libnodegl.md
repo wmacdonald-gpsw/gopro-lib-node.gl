@@ -427,6 +427,18 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 **Source**: [node_rotate.c](/libnodegl/node_rotate.c)
 
 
+## RotateQuat
+
+Parameter | Ctor. | Live-chg. | Type | Description | Default
+--------- | :---: | :-------: | ---- | ----------- | :-----:
+`child` | ✓ |  | [`Node`](#parameter-types) | scene to rotate | 
+`quat` |  | ✓ | [`double`](#parameter-types) | quaternion | `0`
+`anim` |  |  | [`Node`](#parameter-types) ([AnimatedQuat](#animatedquat)) | quaternion animation | 
+
+
+**Source**: [node_rotatequat.c](/libnodegl/node_rotatequat.c)
+
+
 ## Scale
 
 Parameter | Ctor. | Live-chg. | Type | Description | Default

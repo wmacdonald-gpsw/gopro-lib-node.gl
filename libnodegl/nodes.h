@@ -462,6 +462,13 @@ struct rotate_priv {
     int use_anchor;
 };
 
+struct rotatequat_priv {
+    struct transform_priv trf;
+    float quat[4];
+    struct ngl_node *anim;
+
+};
+
 struct translate_priv {
     struct transform_priv trf;
     float vector[3];
