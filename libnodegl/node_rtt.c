@@ -31,14 +31,14 @@
 #include "utils.h"
 
 #define DEFAULT_CLEAR_COLOR {-1.0f, -1.0f, -1.0f, -1.0f}
-#define FEATURE_DEPTH       (1 << 0)
-#define FEATURE_STENCIL     (1 << 1)
+#define FLAG_DEPTH          (1 << 0)
+#define FLAG_STENCIL        (1 << 1)
 
 static const struct param_choices feature_choices = {
     .name = "framebuffer_features",
     .consts = {
-        {"depth",   FEATURE_DEPTH,   .desc=NGLI_DOCSTRING("depth")},
-        {"stencil", FEATURE_STENCIL, .desc=NGLI_DOCSTRING("stencil")},
+        {"depth",   FLAG_DEPTH,   .desc=NGLI_DOCSTRING("depth")},
+        {"stencil", FLAG_STENCIL, .desc=NGLI_DOCSTRING("stencil")},
         {NULL}
     }
 };
@@ -82,6 +82,8 @@ static int has_stencil(int format)
 static int rtt_init(struct ngl_node *node)
 {
     struct rtt_priv *s = node->priv_data;
+
+    s->flags = s->features;
 
     float clear_color[4] = DEFAULT_CLEAR_COLOR;
     s->use_clear_color = memcmp(s->clear_color, clear_color, sizeof(s->clear_color));
@@ -131,13 +133,13 @@ static int rtt_prefetch(struct ngl_node *node)
     if (depth_texture) {
         struct texture *dt = &depth_texture->texture;
         depth_format = depth_texture_params->format;
-        s->features |= FEATURE_DEPTH;
-        s->features |= has_stencil(depth_format) ? FEATURE_STENCIL : 0;
+        s->flags |= FLAG_DEPTH;
+        s->flags |= has_stencil(depth_format) ? FLAG_STENCIL : 0;
         attachments[nb_attachments++] = dt;
     } else {
-        if (s->features & FEATURE_STENCIL)
+        if (s->flags & FLAG_STENCIL)
             depth_format = NGLI_FORMAT_D24_UNORM_S8_UINT;
-        else if (s->features & FEATURE_DEPTH)
+        else if (s->flags & FLAG_DEPTH)
             depth_format = NGLI_FORMAT_D16_UNORM;
 
         if (depth_format != NGLI_FORMAT_UNDEFINED) {
