@@ -80,9 +80,36 @@ static const struct node_param compute_params[] = {
     {NULL}
 };
 
+#ifdef VULKAN_BACKEND
+static VkResult create_compute_pipeline(struct ngl_node *node, VkPipeline *pipeline_dstp)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct compute_priv *s = node->priv_data;
+    struct pipeline *pipeline = &s->pipeline;
+    const struct program_priv *program = pipeline->program->priv_data;
+
+    VkComputePipelineCreateInfo compute_pipeline_create_info = {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = program->shader_stage_create_info[0],
+        .layout = pipeline->pipeline_layout,
+    };
+
+    return vkCreateComputePipelines(vk->device, NULL, 1,
+                                     &compute_pipeline_create_info,
+                                     NULL, pipeline_dstp);
+}
+#endif
+
 static int compute_init(struct ngl_node *node)
 {
-#ifndef VULKAN_BACKEND
+#ifdef VULKAN_BACKEND
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct compute_priv *s = node->priv_data;
+    s->pipeline.create_func = create_compute_pipeline;
+    s->pipeline.queue_family_id = vk->queue_family_graphics_id;
+#else
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;
     struct compute_priv *s = node->priv_data;
@@ -123,7 +150,39 @@ static int compute_update(struct ngl_node *node, double t)
 static void compute_draw(struct ngl_node *node)
 {
 #ifdef VULKAN_BACKEND
-    // TODO
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *vk = ctx->glcontext;
+    struct compute_priv *s = node->priv_data;
+    struct pipeline *pipeline = &s->pipeline;
+    const struct program_priv *program = pipeline->program->priv_data;
+
+    ngli_pipeline_upload_data(node);
+
+    VkCommandBuffer cmd_buf = pipeline->command_buffers[vk->img_index];
+
+    VkCommandBufferBeginInfo command_buffer_begin_info = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+    };
+
+    VkResult ret = vkBeginCommandBuffer(cmd_buf, &command_buffer_begin_info);
+    if (ret != VK_SUCCESS)
+        return;
+
+    vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->vkpipeline);
+
+    if (s->pipeline.descriptor_sets) {
+        vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, s->pipeline.pipeline_layout,
+                                0, 1, &pipeline->descriptor_sets[vk->img_index], 0, NULL);
+    }
+
+    vkCmdDispatch(cmd_buf, s->nb_group_x, s->nb_group_y, s->nb_group_z);
+
+    ret = vkEndCommandBuffer(cmd_buf);
+    if (ret != VK_SUCCESS)
+        return;
+
+    vk->command_buffers[vk->nb_command_buffers++] = cmd_buf;
 #else
     struct ngl_ctx *ctx = node->ctx;
     struct glcontext *gl = ctx->glcontext;

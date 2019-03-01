@@ -310,15 +310,17 @@ struct program_priv {
     int vert_data_size;
     uint8_t *frag_data;
     int frag_data_size;
-    uint8_t *compute_data;
-    int compute_data_size;
+    uint8_t *comp_data;
+    int comp_data_size;
 
     VkShaderModule vert_shader;
     VkShaderModule frag_shader;
+    VkShaderModule comp_shader;
     VkPipelineShaderStageCreateInfo shader_stage_create_info[2];
 
     struct spirv_desc *vert_desc;
     struct spirv_desc *frag_desc;
+    struct spirv_desc *comp_desc;
 #else
     const char *vertex;
     const char *fragment;

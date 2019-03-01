@@ -197,7 +197,7 @@
         - [buffers, NodeDict]
 
 - ComputeProgram:
-    constructors:
+    optional:
         - [compute, data]
 
 - Geometry:

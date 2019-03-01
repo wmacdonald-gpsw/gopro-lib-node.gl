@@ -758,3 +758,69 @@ def vktexture_buffer(cfg):
     render.update_textures(tex0=texture)
 
     return render
+
+
+@scene()
+def vkparticles(cfg, nb_particles=2048, nb_thread=16):
+    random.seed(0)
+
+    cfg.duration = 6
+    group_size = nb_particles / nb_thread
+
+    parameter_data = array.array('f')
+    for i in range(nb_particles):
+        parameter_data.extend([
+            random.uniform(-1.0, 1.0),
+            random.uniform(-1.0, 0.0),
+            0.0,
+            0.0,
+        ])
+
+    for i in range(nb_particles):
+        parameter_data.extend([
+            random.uniform(-0.02, 0.02),
+            random.uniform(-0.05, 0.05),
+        ])
+
+    parameters = ngl.BufferFloat(data=parameter_data)
+
+    animkf = [ngl.AnimKeyFrameFloat(0, 0),
+              ngl.AnimKeyFrameFloat(cfg.duration, 1)]
+    time = ngl.UniformFloat(anim=ngl.AnimatedFloat(animkf))
+    duration = ngl.UniformFloat(cfg.duration)
+    compute_program = ngl.ComputeProgram(compute=cfg.get_comp('vkparticules'))
+
+    compute = ngl.Compute(nb_group_x=group_size, nb_group_y=group_size, nb_group_z=1, program=compute_program)
+    compute.update_uniforms(
+        time=time,
+        duration=duration,
+    )
+
+    positions = ngl.BufferVec3()
+    positions.set_count(nb_particles)
+    positions.set_stride(4 * 4)
+
+    compute.update_buffers(
+        parameters=parameters,
+        result=positions
+    )
+
+    geometry = ngl.Geometry(positions)
+    geometry.set_topology('points')
+
+    quad_width = 0.01
+    quad = ngl.Quad(
+        corner=(-quad_width/2, -quad_width/2, 0),
+        width=(quad_width, 0, 0),
+        height=(0, quad_width, 0)
+    )
+
+    program = ngl.Program(vertex=cfg.get_vert('vkparticules'), fragment=cfg.get_frag('color'))
+    render = ngl.Render(quad, program, nb_instances=nb_particles)
+    render.update_uniforms(color=ngl.UniformVec4(value=(0, .6, .8, 0.9)))
+    render.update_instance_attributes(position=positions)
+
+    group = ngl.Group()
+    group.add_children(compute, render)
+
+    return ngl.Camera(group)

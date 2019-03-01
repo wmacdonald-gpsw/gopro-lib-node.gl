@@ -619,11 +619,13 @@ static VkResult create_descriptor_layout_bindings(struct ngl_node *node)
     static const int stages_map[] = {
         VK_SHADER_STAGE_VERTEX_BIT,
         VK_SHADER_STAGE_FRAGMENT_BIT,
+        VK_SHADER_STAGE_COMPUTE_BIT,
     };
 
     struct hmap *bindings_map[] = {
         program->vert_desc ? program->vert_desc->bindings : NULL,
         program->frag_desc ? program->frag_desc->bindings : NULL,
+        program->comp_desc ? program->comp_desc->bindings : NULL,
     };
 
     // Create descriptor sets
@@ -860,6 +862,7 @@ int ngli_pipeline_init(struct ngl_node *node)
     const struct hmap *bindings_map[] = {
         program->vert_desc ? program->vert_desc->bindings : NULL,
         program->frag_desc ? program->frag_desc->bindings : NULL,
+        program->comp_desc ? program->comp_desc->bindings : NULL,
     };
 
     // XXX:
@@ -902,8 +905,10 @@ int ngli_pipeline_init(struct ngl_node *node)
     struct spirv_block *ngl_uniforms_blocks[] = {
         bindings_map[0] ? ngli_hmap_get(bindings_map[0], "ngl_uniforms") : NULL,
         bindings_map[1] ? ngli_hmap_get(bindings_map[1], "ngl_uniforms") : NULL,
+        bindings_map[2] ? ngli_hmap_get(bindings_map[2], "ngl_uniforms") : NULL,
     };
     int ngl_uniforms_block_offsets[] = {
+        0,
         0,
         0,
     };

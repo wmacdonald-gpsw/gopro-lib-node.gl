@@ -428,7 +428,7 @@ static VkResult select_vulkan_physical_device(struct glcontext *vk)
                    "",
 #endif
                    props.queueCount);
-            if (props.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+            if ((props.queueFlags & VK_QUEUE_GRAPHICS_BIT) && (props.queueFlags & VK_QUEUE_COMPUTE_BIT))
                 queue_family_graphics_id = j;
 
             VkBool32 surface_support;
@@ -471,7 +471,7 @@ static VkResult select_vulkan_physical_device(struct glcontext *vk)
                vk->swapchain_support.nb_formats, vk->swapchain_support.nb_present_modes);
 
         /* Device selection criterias */
-        LOG(DEBUG, "  Graphics:%d Present:%d DeviceEXT:%d/%d",
+        LOG(DEBUG, "  Graphics/Compute:%d Present:%d DeviceEXT:%d/%d",
                queue_family_graphics_id, queue_family_present_id,
                my_ext_props_count, my_ext_props_target_count);
         if (!vk->physical_device &&
