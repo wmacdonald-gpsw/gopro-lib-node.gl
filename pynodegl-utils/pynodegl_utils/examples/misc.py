@@ -670,3 +670,89 @@ def async(cfg):
     group.add_children(rotate)
 
     return group
+
+
+@scene()
+def ubos(cfg):
+    '''Uniform buffer objects demo'''
+
+    vertex = '''
+#version 410
+
+in vec4 ngl_position;
+in vec2 ngl_uvcoord;
+in vec3 ngl_normal;
+
+uniform mat4 ngl_modelview_matrix;
+uniform mat4 ngl_projection_matrix;
+uniform mat3 ngl_normal_matrix;
+
+uniform mat4 tex0_coord_matrix;
+uniform vec2 tex0_dimensions;
+
+out vec2 var_uvcoord;
+out vec3 var_normal;
+out vec2 var_tex0_coord;
+
+void main()
+{
+    gl_Position = ngl_projection_matrix * ngl_modelview_matrix * ngl_position;
+    var_uvcoord = ngl_uvcoord;
+    var_normal = ngl_normal_matrix * ngl_normal;
+    var_tex0_coord = (tex0_coord_matrix * vec4(ngl_uvcoord, 0, 1)).xy;
+}
+'''
+
+    fragment = '''
+#version 410
+
+precision mediump float;
+
+in vec2 var_uvcoord;
+
+layout (std140) uniform Info {
+    float x;
+    float y;
+} info;
+
+
+layout (std140) uniform Param {
+    float x;
+    float y;
+} param;
+
+out vec4 frag_color;
+
+void main()
+{
+    vec4 color = vec4(0.0);
+
+    if (info.x <= 0.4)
+        color.r = 0.0;
+    else
+        color.r = 1.0;
+
+    if (param.x <= 0.2)
+        color.g = 0.0;
+    else
+        color.g = 1.0;
+
+    frag_color = color;
+}
+'''
+
+    info_buffer = array.array('f')
+    info_buffer.extend([0.5, 0.5])
+
+    param_buffer = array.array('f')
+    param_buffer.extend([0.3, 0.3])
+
+    info = ngl.BufferFloat(count=2, data=info_buffer)
+    param = ngl.BufferFloat(count=2, data=param_buffer)
+    program = ngl.Program(vertex, fragment)
+
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    render = ngl.Render(quad, program)
+    render.update_buffers(Info=info, Param=param)
+
+    return render
