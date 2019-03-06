@@ -1166,11 +1166,18 @@ int ngli_vk_find_memory_type(struct glcontext *vk, uint32_t type_filter, VkMemor
     return -1;
 }
 
+static void vk_wait_idle(struct ngl_ctx *s)
+{
+    struct glcontext *vk = s->glcontext;
+    vkDeviceWaitIdle(vk->device);
+}
+
 const struct backend ngli_backend_vk = {
     .name         = "Vulkan",
     .reconfigure  = vk_reconfigure,
     .configure    = vk_configure,
     .pre_draw     = vk_pre_draw,
     .post_draw    = vk_post_draw,
+    .wait_idle    = vk_wait_idle,
     .destroy      = vk_destroy,
 };

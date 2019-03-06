@@ -86,6 +86,7 @@ static int cmd_configure(struct ngl_ctx *s, void *arg)
 static int cmd_set_scene(struct ngl_ctx *s, void *arg)
 {
     if (s->scene) {
+        s->backend->wait_idle(s);
         ngli_node_detach_ctx(s->scene);
         ngl_node_unrefp(&s->scene);
     }
