@@ -824,3 +824,28 @@ def vkparticles(cfg, nb_particles=2048, nb_thread=16):
     group.add_children(compute, render)
 
     return ngl.Camera(group)
+
+
+@scene()
+def vkimgconv(cfg, nb_thread=16):
+    info = cfg.medias[0]
+    cfg.duration = info.duration
+    group_size = info.width
+
+    media = ngl.Media(info.filename)
+    input0 = ngl.Texture2D(data_src=media)
+    output0 = ngl.Texture2D(width=info.width, height=info.height)
+    compute_program = ngl.ComputeProgram(compute=cfg.get_comp('vkimgconv'))
+
+    compute = ngl.Compute(nb_group_x=group_size, nb_group_y=group_size, nb_group_z=1, program=compute_program)
+    compute.update_textures(src=input0, dst=output0)
+
+    quad = ngl.Quad((-1, -1, 0), (2, 0, 0), (0, 2, 0))
+    program = ngl.Program(fragment=cfg.get_frag('vktexture'), vertex=cfg.get_vert('vktexture'))
+    render = ngl.Render(quad, program)
+    render.update_textures(tex0=output0)
+
+    group = ngl.Group()
+    group.add_children(compute, render)
+
+    return ngl.Camera(group)
