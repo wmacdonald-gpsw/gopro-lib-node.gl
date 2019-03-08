@@ -114,10 +114,12 @@ int ngli_fbo_init(struct fbo *fbo, struct glcontext *gl, const struct fbo_params
         }
     }
 
-    // obey color attachment mapping
-    GLenum buffers[15];
-    for (int i = 0; i < params->nb_draw_buffers; i++) {
-        buffers[i] = GL_COLOR_ATTACHMENT0 + params->draw_buffers[i];
+    if(params->nb_draw_buffers > 0) {
+        // obey color attachment mapping
+        GLenum buffers[15];
+        for (int i = 0; i < params->nb_draw_buffers; i++) {
+            buffers[i] = GL_COLOR_ATTACHMENT0 + params->draw_buffers[i];
+        }
         ngli_glDrawBuffers(gl, params->nb_draw_buffers, buffers);
     }
 
