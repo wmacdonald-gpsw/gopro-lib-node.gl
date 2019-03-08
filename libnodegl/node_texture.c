@@ -484,10 +484,10 @@ static int textureCube_init(struct ngl_node *node)
     struct glcontext *gl = ctx->glcontext;
 
     // TODO: not passing check but I know feature is supported.
-    /*if (!(gl->features & NGLI_FEATURE_TEXTURE_CUBE)) {
+    if (!(gl->features & NGLI_FEATURE_TEXTURE_CUBE)) {
         LOG(ERROR, "context does not support cube textures");
         return -1;
-    }*/
+    }
     return 0;
 }
 
