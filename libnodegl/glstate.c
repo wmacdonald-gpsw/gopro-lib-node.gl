@@ -24,6 +24,7 @@
 #include "glcontext.h"
 #include "glincludes.h"
 #include "glstate.h"
+#include "log.h"
 
 void ngli_glstate_probe(const struct glcontext *gl, struct glstate *state)
 {
@@ -57,10 +58,6 @@ void ngli_glstate_probe(const struct glcontext *gl, struct glstate *state)
     /* Face Culling */
     ngli_glGetBooleanv(gl, GL_CULL_FACE,               &state->cull_face);
     ngli_glGetIntegerv(gl, GL_CULL_FACE_MODE,          (GLint *)&state->cull_face_mode);
-
-    /*for(int i = 0; i < 8; i++) {
-        glGetIntegerv(GL_DRAW_BUFFER0 + i, (GLint*)&state->draw_buffers[i]);
-    }*/
 }
 
 void ngli_glstate_honor_state(const struct glcontext *gl,
@@ -159,14 +156,4 @@ void ngli_glstate_honor_state(const struct glcontext *gl,
     if (next->cull_face_mode != prev->cull_face_mode) {
         ngli_glCullFace(gl, next->cull_face_mode);
     }
-
-    /*int buffers_dirty = 0;
-    for(int i = 0; i < 8; i++) {
-        if(next->draw_buffers[i] != prev->draw_buffers[i]) {
-            buffers_dirty = 1;
-        }
-    }
-    if(buffers_dirty) {
-        ngli_glDrawBuffers(gl, 8, (GLenum *)next->draw_buffers);
-    }*/
 }

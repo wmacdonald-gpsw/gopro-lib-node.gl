@@ -65,6 +65,8 @@ static const struct node_param rtt_params[] = {
                       .desc=NGLI_DOCSTRING("framebuffer feature mask")},
     {"vflip",         PARAM_TYPE_BOOL, OFFSET(vflip), {.i64=1},
                       .desc=NGLI_DOCSTRING("apply a vertical flip to `color_texture` and `depth_texture` transformation matrices to match the `node.gl` uv coordinates system")},
+    {"draw_buffers",  PARAM_TYPE_INTLIST,  OFFSET(draw_buffers),
+                      .desc=NGLI_DOCSTRING("draw buffer indicies array")},
     {NULL}
 };
 
@@ -154,6 +156,8 @@ static int rtt_prefetch(struct ngl_node *node)
         .height = s->height,
         .nb_attachments = nb_attachments,
         .attachments = attachments,
+        .nb_draw_buffers = s->nb_draw_buffers,
+        .draw_buffers = s->draw_buffers
     };
     int ret = ngli_fbo_init(&s->fbo, gl, &fbo_params);
     if (ret < 0)

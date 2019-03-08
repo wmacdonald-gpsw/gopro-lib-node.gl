@@ -163,9 +163,6 @@ struct graphicconfig_priv {
     int cull_face;
     int cull_face_mode;
 
-    int *draw_buffers;
-    int nb_draw_buffers;
-
     struct glstate states[2];
 };
 
@@ -290,6 +287,9 @@ struct rtt_priv {
     struct fbo fbo_ms;
     struct texture fbo_ms_color;
     struct texture fbo_ms_depth;
+
+    int *draw_buffers;
+    int nb_draw_buffers;
 };
 
 struct program_priv {

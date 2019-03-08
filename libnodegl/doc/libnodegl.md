@@ -243,9 +243,9 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 `nb_group_y` | ✓ |  | [`int`](#parameter-types) | number of work groups to be executed in the y dimension | `0`
 `nb_group_z` | ✓ |  | [`int`](#parameter-types) | number of work groups to be executed in the z dimension | `0`
 `program` | ✓ |  | [`Node`](#parameter-types) ([ComputeProgram](#computeprogram)) | compute program to be executed | 
-`textures` |  |  | [`intList`](#parameter-types) ([Texture2D](#texture2d)) | input and output textures made accessible to the compute `program` | 
-`uniforms` |  |  | [`intList`](#parameter-types) ([UniformFloat](#uniformfloat), [UniformVec2](#uniformvec2), [UniformVec3](#uniformvec3), [UniformVec4](#uniformvec4), [UniformQuat](#uniformquat), [UniformInt](#uniformint), [UniformMat4](#uniformmat4)) | uniforms made accessible to the compute `program` | 
-`buffers` |  |  | [`intList`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer), [BufferInt](#buffer), [BufferIVec2](#buffer), [BufferIVec3](#buffer), [BufferIVec4](#buffer), [BufferUInt](#buffer), [BufferUIVec2](#buffer), [BufferUIVec3](#buffer), [BufferUIVec4](#buffer)) | input and output buffers made accessible to the compute `program` | 
+`textures` |  |  | [`NodeDict`](#parameter-types) ([Texture2D](#texture2d)) | input and output textures made accessible to the compute `program` | 
+`uniforms` |  |  | [`NodeDict`](#parameter-types) ([UniformFloat](#uniformfloat), [UniformVec2](#uniformvec2), [UniformVec3](#uniformvec3), [UniformVec4](#uniformvec4), [UniformQuat](#uniformquat), [UniformInt](#uniformint), [UniformMat4](#uniformmat4)) | uniforms made accessible to the compute `program` | 
+`buffers` |  |  | [`NodeDict`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer), [BufferInt](#buffer), [BufferIVec2](#buffer), [BufferIVec3](#buffer), [BufferIVec4](#buffer), [BufferUInt](#buffer), [BufferUIVec2](#buffer), [BufferUIVec3](#buffer), [BufferUIVec4](#buffer)) | input and output buffers made accessible to the compute `program` | 
 
 
 **Source**: [node_compute.c](/libnodegl/node_compute.c)
@@ -287,7 +287,7 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 `blend_dst_factor_a` |  |  | [`blend_factor`](#blend_factor-choices) | alpha blend destination factor | `unset`
 `blend_op` |  |  | [`blend_operation`](#blend_operation-choices) | blend operation | `unset`
 `blend_op_a` |  |  | [`blend_operation`](#blend_operation-choices) | alpha blend operation | `unset`
-`color_write_mask` |  |  | [`component`](#component-choices) | color write mask | 
+`color_write_mask` |  |  | [`component`](#component-choices) | color write mask | `unset`
 `depth_test` |  |  | [`bool`](#parameter-types) | enable depth testing | `unset`
 `depth_write_mask` |  |  | [`bool`](#parameter-types) | depth write mask | `unset`
 `depth_func` |  |  | [`function`](#function-choices) | passes if `<function>(depth, stored_depth)` | `unset`
@@ -300,8 +300,7 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 `stencil_depth_fail` |  |  | [`stencil_operation`](#stencil_operation-choices) | operation to execute if depth test fails | `unset`
 `stencil_depth_pass` |  |  | [`stencil_operation`](#stencil_operation-choices) | operation to execute if stencil and depth test pass | `unset`
 `cull_face` |  |  | [`bool`](#parameter-types) | enable face culling | `unset`
-`cull_face_mode` |  |  | [`cull_face`](#cull_face-choices) | face culling mode | 
-`draw_buffers` |  |  | [`intList`](#parameter-types) | draw buffer indicies array | 
+`cull_face_mode` |  |  | [`cull_face`](#cull_face-choices) | face culling mode | `unset`
 
 
 **Source**: [node_graphicconfig.c](/libnodegl/node_graphicconfig.c)
@@ -323,10 +322,10 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 --------- | :---: | :-------: | ---- | ----------- | :-----:
 `child` | ✓ |  | [`Node`](#parameter-types) | scene to benchmark | 
 `measure_window` |  |  | [`int`](#parameter-types) | window size for latency measures | `60`
-`refresh_rate` |  |  | [`flags`](#parameter-types) | refresh data buffer every `update_rate` second | 
+`refresh_rate` |  |  | [`rational`](#parameter-types) | refresh data buffer every `update_rate` second | 
 `export_filename` |  |  | [`string`](#parameter-types) | path to export file (CSV) | 
 `bg_color` |  |  | [`vec4`](#parameter-types) | background buffer color | (`0`,`0`,`0`,`1`)
-`aspect_ratio` |  |  | [`flags`](#parameter-types) | buffer aspect ratio | 
+`aspect_ratio` |  |  | [`rational`](#parameter-types) | buffer aspect ratio | 
 
 
 **Source**: [node_hud.c](/libnodegl/node_hud.c)
@@ -387,11 +386,11 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 --------- | :---: | :-------: | ---- | ----------- | :-----:
 `geometry` | ✓ |  | [`Node`](#parameter-types) ([Circle](#circle), [Geometry](#geometry), [Quad](#quad), [Triangle](#triangle)) | geometry to be rasterized | 
 `program` |  |  | [`Node`](#parameter-types) ([Program](#program)) | program to be executed | 
-`textures` |  |  | [`intList`](#parameter-types) ([Texture2D](#texture2d), [Texture3D](#texture3d), [TextureCube](#texturecube)) | textures made accessible to the `program` | 
-`uniforms` |  |  | [`intList`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer), [UniformFloat](#uniformfloat), [UniformVec2](#uniformvec2), [UniformVec3](#uniformvec3), [UniformVec4](#uniformvec4), [UniformQuat](#uniformquat), [UniformInt](#uniformint), [UniformMat4](#uniformmat4)) | uniforms made accessible to the `program` | 
-`buffers` |  |  | [`intList`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer), [BufferInt](#buffer), [BufferIVec2](#buffer), [BufferIVec3](#buffer), [BufferIVec4](#buffer), [BufferUInt](#buffer), [BufferUIVec2](#buffer), [BufferUIVec3](#buffer), [BufferUIVec4](#buffer)) | buffers made accessible to the `program` | 
-`attributes` |  |  | [`intList`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer)) | extra vertex attributes made accessible to the `program` | 
-`instance_attributes` |  |  | [`intList`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer)) | per instance extra vertex attributes made accessible to the `program` | 
+`textures` |  |  | [`NodeDict`](#parameter-types) ([Texture2D](#texture2d), [Texture3D](#texture3d), [TextureCube](#texturecube)) | textures made accessible to the `program` | 
+`uniforms` |  |  | [`NodeDict`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer), [UniformFloat](#uniformfloat), [UniformVec2](#uniformvec2), [UniformVec3](#uniformvec3), [UniformVec4](#uniformvec4), [UniformQuat](#uniformquat), [UniformInt](#uniformint), [UniformMat4](#uniformmat4)) | uniforms made accessible to the `program` | 
+`buffers` |  |  | [`NodeDict`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer), [BufferInt](#buffer), [BufferIVec2](#buffer), [BufferIVec3](#buffer), [BufferIVec4](#buffer), [BufferUInt](#buffer), [BufferUIVec2](#buffer), [BufferUIVec3](#buffer), [BufferUIVec4](#buffer)) | buffers made accessible to the `program` | 
+`attributes` |  |  | [`NodeDict`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer)) | extra vertex attributes made accessible to the `program` | 
+`instance_attributes` |  |  | [`NodeDict`](#parameter-types) ([BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer)) | per instance extra vertex attributes made accessible to the `program` | 
 `nb_instances` |  |  | [`int`](#parameter-types) | number of instances to draw | `0`
 
 
@@ -409,6 +408,7 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 `clear_color` |  |  | [`vec4`](#parameter-types) | color used to clear the `color_texture` | (`-1`,`-1`,`-1`,`-1`)
 `features` |  |  | [`framebuffer_features`](#framebuffer_features-choices) | framebuffer feature mask | `0`
 `vflip` |  |  | [`bool`](#parameter-types) | apply a vertical flip to `color_texture` and `depth_texture` transformation matrices to match the `node.gl` uv coordinates system | `1`
+`draw_buffers` |  |  | [`intList`](#parameter-types) | draw buffer indicies array | 
 
 
 **Source**: [node_rtt.c](/libnodegl/node_rtt.c)
@@ -493,7 +493,6 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 `wrap_t` |  |  | [`wrap`](#wrap-choices) | wrap parameter for the texture on the t dimension (vertical) | `clamp_to_edge`
 `wrap_r` |  |  | [`wrap`](#wrap-choices) | wrap parameter for the texture on the r dimension (depth) | `clamp_to_edge`
 `access` |  |  | [`access`](#access-choices) | texture access (only honored by the `Compute` node) | `read_write`
-`data_src` |  |  | [`Node`](#parameter-types) ([AnimatedBufferFloat](#animatedbuffer), [AnimatedBufferVec2](#animatedbuffer), [AnimatedBufferVec3](#animatedbuffer), [AnimatedBufferVec4](#animatedbuffer), [BufferByte](#buffer), [BufferBVec2](#buffer), [BufferBVec3](#buffer), [BufferBVec4](#buffer), [BufferInt](#buffer), [BufferIVec2](#buffer), [BufferIVec3](#buffer), [BufferIVec4](#buffer), [BufferShort](#buffer), [BufferSVec2](#buffer), [BufferSVec3](#buffer), [BufferSVec4](#buffer), [BufferUByte](#buffer), [BufferUBVec2](#buffer), [BufferUBVec3](#buffer), [BufferUBVec4](#buffer), [BufferUInt](#buffer), [BufferUIVec2](#buffer), [BufferUIVec3](#buffer), [BufferUIVec4](#buffer), [BufferUShort](#buffer), [BufferUSVec2](#buffer), [BufferUSVec3](#buffer), [BufferUSVec4](#buffer), [BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer)) | data source | 
 
 
 **Source**: [node_texture.c](/libnodegl/node_texture.c)
@@ -689,6 +688,7 @@ Type | Description
 `NodeDict` | Dictionary mapping arbitrary string identifiers to node.gl Nodes
 `select` | Selection of one constant (expressed as a string)
 `flags` | Combination of constants (expressed as strings), using `+` as separator. Can be empty for none.
+`rational` | Rational number (expressed as 2 integers, respectively as numerator and denominator)
 
 Constants for choices parameters
 ================================

@@ -108,13 +108,17 @@ int ngli_fbo_init(struct fbo *fbo, struct glcontext *gl, const struct fbo_params
                 attachment_index++;
                 color_index++;
             }
-            // TODO: move this to a GraphicsConfig option
-            GLenum buffers[6] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3, GL_COLOR_ATTACHMENT4, GL_COLOR_ATTACHMENT5};
-            ngli_glDrawBuffers(gl, 6, buffers);
             break;
         default:
             ngli_assert(0);
         }
+    }
+
+    // obey color attachment mapping
+    GLenum buffers[15];
+    for (int i = 0; i < params->nb_draw_buffers; i++) {
+        buffers[i] = GL_COLOR_ATTACHMENT0 + params->draw_buffers[i];
+        ngli_glDrawBuffers(gl, params->nb_draw_buffers, buffers);
     }
 
     if (ngli_glCheckFramebufferStatus(gl, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {

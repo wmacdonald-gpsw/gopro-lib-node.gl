@@ -177,6 +177,9 @@ cmds = [
     'glGetRenderbufferParameteriv',
     'glRenderbufferStorage',
 
+    # Draw Buffer
+    'glDrawBuffers',
+
     # Shader
     'glCreateProgram',
     'glCreateShader',

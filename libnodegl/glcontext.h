@@ -51,6 +51,7 @@
 #define NGLI_FEATURE_SYNC                         (1 << 22)
 #define NGLI_FEATURE_YUV_TARGET                   (1 << 23)
 #define NGLI_FEATURE_TEXTURE_CUBE                 (1 << 24)
+#define NGLI_FEATURE_DRAW_BUFFERS                 (1 << 25)
 
 #define NGLI_FEATURE_COMPUTE_SHADER_ALL (NGLI_FEATURE_COMPUTE_SHADER           | \
                                          NGLI_FEATURE_PROGRAM_INTERFACE_QUERY  | \

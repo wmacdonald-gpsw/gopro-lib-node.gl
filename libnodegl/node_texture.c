@@ -200,8 +200,6 @@ static const struct node_param textureCube_params[] = {
                .desc=NGLI_DOCSTRING("wrap parameter for the texture on the r dimension (depth)")},
     {"access", PARAM_TYPE_SELECT, OFFSET(params.access), {.i64=GL_READ_WRITE}, .choices=&access_choices,
                .desc=NGLI_DOCSTRING("texture access (only honored by the `Compute` node)")},
-    {"data_src", PARAM_TYPE_NODE, OFFSET(data_src), .node_types=DATA_SRC_TYPES_LIST_3D,
-                 .desc=NGLI_DOCSTRING("data source")},
     {NULL}
 };
 

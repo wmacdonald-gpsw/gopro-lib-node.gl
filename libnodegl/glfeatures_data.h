@@ -215,10 +215,15 @@ static const struct glfeature {
         .flag           = NGLI_FEATURE_YUV_TARGET,
         .es_extensions  = (const char*[]){"GL_EXT_YUV_target", NULL}
     }, {
-        .name           = "textureCube",
+        .name           = "texture_cube",
         .flag           = NGLI_FEATURE_TEXTURE_CUBE,
         .extensions     = (const char*[]){"GL_ARB_texture_cube_map",
                                           "GL_ARB_seamless_cube_map",
                                           NULL},
+    }, {
+        .name           = "draw_buffers",
+        .flag           = NGLI_FEATURE_DRAW_BUFFERS,
+        .es_extensions  = (const char*[]){"GL_EXT_draw_buffers", NULL},
+        .funcs_offsets  = (const size_t[]){OFFSET(DrawBuffers), -1}
     }
 };

@@ -31,6 +31,8 @@ struct fbo_params {
     int height;
     int nb_attachments;
     const struct texture **attachments;
+    int nb_draw_buffers;
+    int *draw_buffers;
 };
 
 struct fbo {
