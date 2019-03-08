@@ -48,6 +48,8 @@ struct glstate {
 
     GLboolean cull_face;
     GLenum cull_face_mode;
+
+    GLenum draw_buffers[8];
 };
 
 void ngli_glstate_probe(const struct glcontext *gl,

@@ -170,6 +170,8 @@ static const struct node_param graphicconfig_params[] = {
     {"cull_face_mode",     PARAM_TYPE_FLAGS,  OFFSET(cull_face_mode),     {.i64=-1},
                            .choices=&cull_face_choices,
                            .desc=NGLI_DOCSTRING("face culling mode")},
+    {"draw_buffers",       PARAM_TYPE_INTLIST,  OFFSET(draw_buffers),
+                           .desc=NGLI_DOCSTRING("draw buffer indicies array")},
     {NULL}
 };
 
@@ -229,6 +231,14 @@ static void honor_config(struct ngl_node *node, int restore)
             next->cull_face_mode = s->cull_face_mode == (1<<0) ? GL_FRONT
                                  : s->cull_face_mode == (1<<1) ? GL_BACK
                                  : GL_FRONT_AND_BACK;
+
+        if(s->nb_draw_buffers > 0) {
+            LOG(ERROR, "Draw Buffer List:");
+        }
+        for (int i = 0; i < s->nb_draw_buffers; i++) {
+            LOG(ERROR, " %d", s->draw_buffers[i]);
+            next->draw_buffers[i] = s->draw_buffers[i];
+        }
     }
 
     *prev = ctx->glstate;

@@ -163,6 +163,9 @@ struct graphicconfig_priv {
     int cull_face;
     int cull_face_mode;
 
+    int *draw_buffers;
+    int nb_draw_buffers;
+
     struct glstate states[2];
 };
 
