@@ -217,6 +217,8 @@ static const struct glfeature {
     }, {
         .name           = "texture_cube",
         .flag           = NGLI_FEATURE_TEXTURE_CUBE,
+        .version        = 320,
+        .es_version     = 300,
         .extensions     = (const char*[]){"GL_ARB_texture_cube_map",
                                           "GL_ARB_seamless_cube_map",
                                           NULL},
