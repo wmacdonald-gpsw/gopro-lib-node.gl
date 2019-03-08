@@ -214,5 +214,11 @@ static const struct glfeature {
         .name           = "yuv_target",
         .flag           = NGLI_FEATURE_YUV_TARGET,
         .es_extensions  = (const char*[]){"GL_EXT_YUV_target", NULL}
+    }, {
+        .name           = "textureCube",
+        .flag           = NGLI_FEATURE_TEXTURE_CUBE,
+        .extensions     = (const char*[]){"GL_ARB_texture_cube_map",
+                                          "GL_ARB_seamless_cube_map",
+                                          NULL},
     }
 };
