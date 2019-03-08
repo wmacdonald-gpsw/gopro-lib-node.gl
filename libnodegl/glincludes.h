@@ -81,6 +81,7 @@ typedef void* GLeglImageOES;
 # define GL_STENCIL_INDEX                      0x1901
 # define GL_STENCIL_INDEX8                     0x8D48
 # define GL_SAMPLER_3D                         0x8B5F
+# define GL_SAMPLER_CUBE                       0x8B60
 # define GL_TEXTURE_EXTERNAL_OES               0x8D65
 # define GL_SAMPLER_EXTERNAL_OES               0x8D66
 # define GL_TEXTURE_BINDING_EXTERNAL_OES       0x8D67
@@ -169,6 +170,14 @@ typedef void* GLeglImageOES;
 # define GL_POLYGON_MODE                       0x0B40
 # define GL_FILL                               0x1B02
 # define GL_TEXTURE_3D                         0x806F
+# define GL_TEXTURE_CUBE_MAP                   0x8513
+# define GL_TEXTURE_BINDING_CUBE_MAP           0x8514
+# define GL_TEXTURE_CUBE_MAP_POSITIVE_X        0x8515
+# define GL_TEXTURE_CUBE_MAP_NEGATIVE_X        0x8516
+# define GL_TEXTURE_CUBE_MAP_POSITIVE_Y        0x8517
+# define GL_TEXTURE_CUBE_MAP_NEGATIVE_Y        0x8518
+# define GL_TEXTURE_CUBE_MAP_POSITIVE_Z        0x8519
+# define GL_TEXTURE_CUBE_MAP_NEGATIVE_Z        0x851A
 # define GL_TEXTURE_WRAP_R                     0x8072
 # define GL_MIN                                0x8007
 # define GL_MAX                                0x8008

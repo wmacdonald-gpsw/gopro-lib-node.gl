@@ -59,6 +59,7 @@ struct texture_params {
     int external_storage;
     int external_oes;
     int rectangle;
+    int cubemap;
 };
 
 struct texture {
