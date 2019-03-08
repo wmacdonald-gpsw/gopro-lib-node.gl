@@ -111,6 +111,12 @@ static int rtt_prefetch(struct ngl_node *node)
         s->samples = 0;
     }
 
+    if (!(gl->features & NGLI_FEATURE_TEXTURE_CUBE) &&
+        s->nb_draw_buffers > 0) {
+        LOG(WARNING, "context does not support draw buffers");
+        s->nb_draw_buffers = 0;
+    }
+
     if (s->depth_texture) {
         depth_texture = s->depth_texture->priv_data;
         depth_texture_params = &depth_texture->params;
