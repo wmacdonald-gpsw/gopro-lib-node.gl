@@ -43,7 +43,7 @@
         - [time, double]
         - [value, double]
     optional:
-        - [easing, select]
+        - [easing, NodeDict]
         - [easing_args, doubleList]
         - [easing_start_offset, double]
         - [easing_end_offset, double]
@@ -53,7 +53,7 @@
         - [time, double]
         - [value, vec2]
     optional:
-        - [easing, select]
+        - [easing, NodeDict]
         - [easing_args, doubleList]
         - [easing_start_offset, double]
         - [easing_end_offset, double]
@@ -63,7 +63,7 @@
         - [time, double]
         - [value, vec3]
     optional:
-        - [easing, select]
+        - [easing, NodeDict]
         - [easing_args, doubleList]
         - [easing_start_offset, double]
         - [easing_end_offset, double]
@@ -73,7 +73,7 @@
         - [time, double]
         - [value, vec4]
     optional:
-        - [easing, select]
+        - [easing, NodeDict]
         - [easing_args, doubleList]
         - [easing_start_offset, double]
         - [easing_end_offset, double]
@@ -83,7 +83,7 @@
         - [time, double]
         - [quat, vec4]
     optional:
-        - [easing, select]
+        - [easing, NodeDict]
         - [easing_args, doubleList]
         - [easing_start_offset, double]
         - [easing_end_offset, double]
@@ -93,7 +93,7 @@
         - [time, double]
     optional:
         - [data, data]
-        - [easing, select]
+        - [easing, NodeDict]
         - [easing_args, doubleList]
         - [easing_start_offset, double]
         - [easing_end_offset, double]
@@ -104,7 +104,7 @@
         - [data, data]
         - [filename, string]
         - [stride, int]
-        - [usage, select]
+        - [usage, NodeDict]
 
 - BufferByte: _Buffer
 
@@ -192,9 +192,9 @@
         - [nb_group_z, int]
         - [program, Node]
     optional:
-        - [textures, NodeDict]
-        - [uniforms, NodeDict]
-        - [buffers, NodeDict]
+        - [textures, intList]
+        - [uniforms, intList]
+        - [buffers, intList]
 
 - ComputeProgram:
     constructors:
@@ -207,7 +207,7 @@
         - [uvcoords, Node]
         - [normals, Node]
         - [indices, Node]
-        - [topology, select]
+        - [topology, NodeDict]
 
 - GraphicConfig:
     constructors:
@@ -234,6 +234,7 @@
         - [stencil_depth_pass, select]
         - [cull_face, bool]
         - [cull_face_mode, flags]
+        - [draw_buffers, intList]
 
 - Group:
     optional:
@@ -244,10 +245,10 @@
         - [child, Node]
     optional:
         - [measure_window, int]
-        - [refresh_rate, rational]
+        - [refresh_rate, flags]
         - [export_filename, string]
         - [bg_color, vec4]
-        - [aspect_ratio, rational]
+        - [aspect_ratio, flags]
 
 - Identity:
 
@@ -255,7 +256,7 @@
     constructors:
         - [filename, string]
     optional:
-        - [sxplayer_min_level, select]
+        - [sxplayer_min_level, NodeDict]
         - [time_anim, Node]
         - [audio_tex, bool]
         - [max_nb_packets, int]
@@ -283,11 +284,11 @@
         - [geometry, Node]
     optional:
         - [program, Node]
-        - [textures, NodeDict]
-        - [uniforms, NodeDict]
-        - [buffers, NodeDict]
-        - [attributes, NodeDict]
-        - [instance_attributes, NodeDict]
+        - [textures, intList]
+        - [uniforms, intList]
+        - [buffers, intList]
+        - [attributes, intList]
+        - [instance_attributes, intList]
         - [nb_instances, int]
 
 - RenderToTexture:
@@ -298,7 +299,7 @@
         - [depth_texture, Node]
         - [samples, int]
         - [clear_color, vec4]
-        - [features, flags]
+        - [features, select]
         - [vflip, bool]
 
 - Rotate:
@@ -320,29 +321,42 @@
 
 - Texture2D:
     optional:
-        - [format, select]
+        - [format, NodeDict]
         - [width, int]
         - [height, int]
-        - [min_filter, select]
-        - [mag_filter, select]
-        - [wrap_s, select]
-        - [wrap_t, select]
-        - [access, select]
+        - [min_filter, NodeDict]
+        - [mag_filter, NodeDict]
+        - [wrap_s, NodeDict]
+        - [wrap_t, NodeDict]
+        - [access, NodeDict]
         - [data_src, Node]
         - [direct_rendering, bool]
 
 - Texture3D:
     optional:
-        - [format, select]
+        - [format, NodeDict]
         - [width, int]
         - [height, int]
         - [depth, int]
-        - [min_filter, select]
-        - [mag_filter, select]
-        - [wrap_s, select]
-        - [wrap_t, select]
-        - [wrap_r, select]
-        - [access, select]
+        - [min_filter, NodeDict]
+        - [mag_filter, NodeDict]
+        - [wrap_s, NodeDict]
+        - [wrap_t, NodeDict]
+        - [wrap_r, NodeDict]
+        - [access, NodeDict]
+        - [data_src, Node]
+
+- TextureCube:
+    optional:
+        - [format, NodeDict]
+        - [width, int]
+        - [height, int]
+        - [min_filter, NodeDict]
+        - [mag_filter, NodeDict]
+        - [wrap_s, NodeDict]
+        - [wrap_t, NodeDict]
+        - [wrap_r, NodeDict]
+        - [access, NodeDict]
         - [data_src, Node]
 
 - TimeRangeFilter:

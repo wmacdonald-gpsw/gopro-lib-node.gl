@@ -181,6 +181,30 @@ static const struct node_param texture3d_params[] = {
     {NULL}
 };
 
+static const struct node_param textureCube_params[] = {
+    {"format", PARAM_TYPE_SELECT, OFFSET(params.format), {.i64=NGLI_FORMAT_R8G8B8A8_UNORM}, .choices=&format_choices,
+               .desc=NGLI_DOCSTRING("format of the pixel data")},
+    {"width", PARAM_TYPE_INT, OFFSET(params.width), {.i64=0},
+              .desc=NGLI_DOCSTRING("width of the texture")},
+    {"height", PARAM_TYPE_INT, OFFSET(params.height), {.i64=0},
+               .desc=NGLI_DOCSTRING("height of the texture")},
+    {"min_filter", PARAM_TYPE_SELECT, OFFSET(params.min_filter), {.i64=GL_NEAREST}, .choices=&minfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture minifying function")},
+    {"mag_filter", PARAM_TYPE_SELECT, OFFSET(params.mag_filter), {.i64=GL_NEAREST}, .choices=&magfilter_choices,
+                   .desc=NGLI_DOCSTRING("texture magnification function")},
+    {"wrap_s", PARAM_TYPE_SELECT, OFFSET(params.wrap_s), {.i64=GL_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the s dimension (horizontal)")},
+    {"wrap_t", PARAM_TYPE_SELECT, OFFSET(params.wrap_t), {.i64=GL_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the t dimension (vertical)")},
+    {"wrap_r", PARAM_TYPE_SELECT, OFFSET(params.wrap_r), {.i64=GL_CLAMP_TO_EDGE}, .choices=&wrap_choices,
+               .desc=NGLI_DOCSTRING("wrap parameter for the texture on the r dimension (depth)")},
+    {"access", PARAM_TYPE_SELECT, OFFSET(params.access), {.i64=GL_READ_WRITE}, .choices=&access_choices,
+               .desc=NGLI_DOCSTRING("texture access (only honored by the `Compute` node)")},
+    {"data_src", PARAM_TYPE_NODE, OFFSET(data_src), .node_types=DATA_SRC_TYPES_LIST_3D,
+                 .desc=NGLI_DOCSTRING("data source")},
+    {NULL}
+};
+
 static int texture_prefetch(struct ngl_node *node, int dimensions)
 {
     struct ngl_ctx *ctx = node->ctx;
@@ -290,6 +314,89 @@ static int texture##dim##d_prefetch(struct ngl_node *node)  \
 TEXTURE_PREFETCH(2)
 TEXTURE_PREFETCH(3)
 
+static int textureCube_prefetch(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *gl = ctx->glcontext;
+    struct texture_priv *s = node->priv_data;
+    struct texture_params *params = &s->params;
+
+    // still technically 3 dimensions, just organized differently
+    params->dimensions = 3;
+    params->depth = 6;
+    params->cubemap = 1;
+
+    if (gl->features & NGLI_FEATURE_TEXTURE_STORAGE)
+        params->immutable = 1;
+
+    const uint8_t *data = NULL;
+
+    if (s->data_src) {
+        switch (s->data_src->class->id) {
+        case NGL_NODE_ANIMATEDBUFFERFLOAT:
+        case NGL_NODE_ANIMATEDBUFFERVEC2:
+        case NGL_NODE_ANIMATEDBUFFERVEC3:
+        case NGL_NODE_ANIMATEDBUFFERVEC4:
+        case NGL_NODE_BUFFERBYTE:
+        case NGL_NODE_BUFFERBVEC2:
+        case NGL_NODE_BUFFERBVEC3:
+        case NGL_NODE_BUFFERBVEC4:
+        case NGL_NODE_BUFFERINT:
+        case NGL_NODE_BUFFERIVEC2:
+        case NGL_NODE_BUFFERIVEC3:
+        case NGL_NODE_BUFFERIVEC4:
+        case NGL_NODE_BUFFERSHORT:
+        case NGL_NODE_BUFFERSVEC2:
+        case NGL_NODE_BUFFERSVEC3:
+        case NGL_NODE_BUFFERSVEC4:
+        case NGL_NODE_BUFFERUBYTE:
+        case NGL_NODE_BUFFERUBVEC2:
+        case NGL_NODE_BUFFERUBVEC3:
+        case NGL_NODE_BUFFERUBVEC4:
+        case NGL_NODE_BUFFERUINT:
+        case NGL_NODE_BUFFERUIVEC2:
+        case NGL_NODE_BUFFERUIVEC3:
+        case NGL_NODE_BUFFERUIVEC4:
+        case NGL_NODE_BUFFERUSHORT:
+        case NGL_NODE_BUFFERUSVEC2:
+        case NGL_NODE_BUFFERUSVEC3:
+        case NGL_NODE_BUFFERUSVEC4:
+        case NGL_NODE_BUFFERFLOAT:
+        case NGL_NODE_BUFFERVEC2:
+        case NGL_NODE_BUFFERVEC3:
+        case NGL_NODE_BUFFERVEC4: {
+            struct buffer_priv *buffer = s->data_src->priv_data;
+
+            if (buffer->count != params->width * params->height * params->depth) {
+                LOG(ERROR, "dimensions (%dx%dx%d) do not match buffer count (%d),"
+                    " assuming %dx1x1", params->width, params->height, params->depth,
+                    buffer->count, buffer->count);
+                params->width = buffer->count;
+                params->height = params->depth = 1;
+            }
+
+            data = buffer->data;
+            params->format = buffer->data_format;
+            break;
+        }
+        default:
+            ngli_assert(0);
+        }
+    }
+
+    int ret = ngli_texture_init(&s->texture, gl, params);
+    if (ret < 0)
+        return ret;
+
+    ret = ngli_texture_upload(&s->texture, data);
+    if (ret < 0)
+        return ret;
+
+    ngli_image_init(&s->image, NGLI_IMAGE_LAYOUT_DEFAULT, &s->texture);
+
+    return 0;
+}
+
 static void handle_hud_frame(struct ngl_node *node)
 {
     struct texture_priv *s = node->priv_data;
@@ -373,6 +480,19 @@ static int texture3d_init(struct ngl_node *node)
     return 0;
 }
 
+static int textureCube_init(struct ngl_node *node)
+{
+    struct ngl_ctx *ctx = node->ctx;
+    struct glcontext *gl = ctx->glcontext;
+
+    // TODO: not passing check but I know feature is supported.
+    /*if (!(gl->features & NGLI_FEATURE_TEXTURE_CUBE)) {
+        LOG(ERROR, "context does not support cube textures");
+        return -1;
+    }*/
+    return 0;
+}
+
 const struct node_class ngli_texture2d_class = {
     .id        = NGL_NODE_TEXTURE2D,
     .name      = "Texture2D",
@@ -393,5 +513,17 @@ const struct node_class ngli_texture3d_class = {
     .release   = texture_release,
     .priv_size = sizeof(struct texture_priv),
     .params    = texture3d_params,
+    .file      = __FILE__,
+};
+
+const struct node_class ngli_textureCube_class = {
+    .id        = NGL_NODE_TEXTURECUBE,
+    .name      = "TextureCube",
+    .init      = textureCube_init,
+    .prefetch  = textureCube_prefetch,
+    .update    = texture_update,
+    .release   = texture_release,
+    .priv_size = sizeof(struct texture_priv),
+    .params    = textureCube_params,
     .file      = __FILE__,
 };

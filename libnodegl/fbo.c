@@ -102,6 +102,16 @@ int ngli_fbo_init(struct fbo *fbo, struct glcontext *gl, const struct fbo_params
         case GL_TEXTURE_2D:
             ngli_glFramebufferTexture2D(gl, GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_2D, attachment->id, 0);
             break;
+        case GL_TEXTURE_CUBE_MAP:
+            for(int face = 0; face < 6; face++) {
+                ngli_glFramebufferTexture2D(gl, GL_FRAMEBUFFER, attachment_index, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, attachment->id, 0);
+                attachment_index++;
+                color_index++;
+            }
+            // TODO: move this to a GraphicsConfig option
+            GLenum buffers[6] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3, GL_COLOR_ATTACHMENT4, GL_COLOR_ATTACHMENT5};
+            ngli_glDrawBuffers(gl, 6, buffers);
+            break;
         default:
             ngli_assert(0);
         }

@@ -479,6 +479,25 @@ Parameter | Ctor. | Live-chg. | Type | Description | Default
 **Source**: [node_texture.c](/libnodegl/node_texture.c)
 
 
+## TextureCube
+
+Parameter | Ctor. | Live-chg. | Type | Description | Default
+--------- | :---: | :-------: | ---- | ----------- | :-----:
+`format` |  |  | [`format`](#format-choices) | format of the pixel data | `r8g8b8a8_unorm`
+`width` |  |  | [`int`](#parameter-types) | width of the texture | `0`
+`height` |  |  | [`int`](#parameter-types) | height of the texture | `0`
+`min_filter` |  |  | [`min_filter`](#min_filter-choices) | texture minifying function | `nearest`
+`mag_filter` |  |  | [`mag_filter`](#mag_filter-choices) | texture magnification function | `nearest`
+`wrap_s` |  |  | [`wrap`](#wrap-choices) | wrap parameter for the texture on the s dimension (horizontal) | `clamp_to_edge`
+`wrap_t` |  |  | [`wrap`](#wrap-choices) | wrap parameter for the texture on the t dimension (vertical) | `clamp_to_edge`
+`wrap_r` |  |  | [`wrap`](#wrap-choices) | wrap parameter for the texture on the r dimension (depth) | `clamp_to_edge`
+`access` |  |  | [`access`](#access-choices) | texture access (only honored by the `Compute` node) | `read_write`
+`data_src` |  |  | [`Node`](#parameter-types) ([AnimatedBufferFloat](#animatedbuffer), [AnimatedBufferVec2](#animatedbuffer), [AnimatedBufferVec3](#animatedbuffer), [AnimatedBufferVec4](#animatedbuffer), [BufferByte](#buffer), [BufferBVec2](#buffer), [BufferBVec3](#buffer), [BufferBVec4](#buffer), [BufferInt](#buffer), [BufferIVec2](#buffer), [BufferIVec3](#buffer), [BufferIVec4](#buffer), [BufferShort](#buffer), [BufferSVec2](#buffer), [BufferSVec3](#buffer), [BufferSVec4](#buffer), [BufferUByte](#buffer), [BufferUBVec2](#buffer), [BufferUBVec3](#buffer), [BufferUBVec4](#buffer), [BufferUInt](#buffer), [BufferUIVec2](#buffer), [BufferUIVec3](#buffer), [BufferUIVec4](#buffer), [BufferUShort](#buffer), [BufferUSVec2](#buffer), [BufferUSVec3](#buffer), [BufferUSVec4](#buffer), [BufferFloat](#buffer), [BufferVec2](#buffer), [BufferVec3](#buffer), [BufferVec4](#buffer)) | data source | 
+
+
+**Source**: [node_texture.c](/libnodegl/node_texture.c)
+
+
 ## TimeRangeFilter
 
 Parameter | Ctor. | Live-chg. | Type | Description | Default
