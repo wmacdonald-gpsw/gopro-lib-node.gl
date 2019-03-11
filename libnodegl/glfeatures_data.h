@@ -225,6 +225,8 @@ static const struct glfeature {
     }, {
         .name           = "draw_buffers",
         .flag           = NGLI_FEATURE_DRAW_BUFFERS,
+        .version        = 200,
+        .es_version     = 300,
         .es_extensions  = (const char*[]){"GL_EXT_draw_buffers", NULL},
         .funcs_offsets  = (const size_t[]){OFFSET(DrawBuffers), -1}
     }
