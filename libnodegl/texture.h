@@ -67,6 +67,7 @@ struct texture {
     struct texture_params params;
     int wrapped;
     int external_storage;
+    int sample_size;
 
     GLenum target;
     GLuint id;

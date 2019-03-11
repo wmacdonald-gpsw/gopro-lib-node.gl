@@ -65,15 +65,19 @@ static void texture_set_image(struct texture *s, const uint8_t *data)
     case GL_TEXTURE_3D:
         ngli_glTexImage3D(gl, GL_TEXTURE_3D, 0, s->internal_format, params->width, params->height, params->depth, 0, s->format, s->format_type, data);
         break;
-    case GL_TEXTURE_CUBE_MAP:
-        // TODO: Not supported. Need a clean way to index faces into a data buffer
-        // This will set up the texture so that the memory is valid, but the texture will have undefined content.
-        ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, NULL);
-        ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, NULL);
-        ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, NULL);
-        ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, NULL);
-        ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, NULL);
-        ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, NULL);
+    case GL_TEXTURE_CUBE_MAP: {
+            int face_size = s->sample_size * params->width * params->height;
+            if(data == NULL) {
+                face_size = 0;
+            }
+
+            ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, data);
+            ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, data + (face_size));
+            ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, data + (face_size * 2));
+            ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, data + (face_size * 3));
+            ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, data + (face_size * 4));
+            ngli_glTexImage2D(gl, GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, s->internal_format, params->width, params->height, 0, s->format, s->format_type, data + (face_size * 5));
+        }
         break;
     }
 }
@@ -90,8 +94,19 @@ static void texture_set_sub_image(struct texture *s, const uint8_t *data)
     case GL_TEXTURE_3D:
         ngli_glTexSubImage3D(gl, GL_TEXTURE_3D, 0, 0, 0, 0, params->width, params->height, params->depth, s->format, s->format_type, data);
         break;
-    case GL_TEXTURE_CUBE_MAP:
-        // TODO: Not supported. Need a clean way to index faces into a data buffer
+    case GL_TEXTURE_CUBE_MAP: {
+            int face_size = s->sample_size * params->width * params->height;
+            if(data == NULL) {
+                face_size = 0;
+            }
+
+            ngli_glTexSubImage2D(gl, GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, 0, 0, params->width, params->height, s->format, s->format_type, data);
+            ngli_glTexSubImage2D(gl, GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, 0, 0, params->width, params->height, s->format, s->format_type, data + (face_size));
+            ngli_glTexSubImage2D(gl, GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, 0, 0, params->width, params->height, s->format, s->format_type, data + (face_size * 2));
+            ngli_glTexSubImage2D(gl, GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, 0, 0, params->width, params->height, s->format, s->format_type, data + (face_size * 3));
+            ngli_glTexSubImage2D(gl, GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, 0, 0, params->width, params->height, s->format, s->format_type, data + (face_size * 4));
+            ngli_glTexSubImage2D(gl, GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, 0, 0, params->width, params->height, s->format, s->format_type, data + (face_size * 5));
+        }
         break;
     }
 }
@@ -197,6 +212,46 @@ static int texture_init_fields(struct texture *s)
                                                 &s->format_type);
     if (ret < 0)
         return ret;
+
+    int component_size = 0;
+    int component_count = 0;
+    switch(s->format) {
+    case GL_RED:
+    case GL_RED_INTEGER:
+        component_count = 1;
+        break;
+    case GL_RG:
+    case GL_RG_INTEGER:
+        component_count = 2;
+        break;
+    case GL_RGB:
+    case GL_RGB_INTEGER:
+        component_count = 3;
+        break;
+    case GL_RGBA:
+    case GL_RGBA_INTEGER:
+    case GL_BGRA:
+    case GL_BGRA_INTEGER:
+        component_count = 4;
+        break;
+    }
+    switch(s->format_type) {
+    case GL_UNSIGNED_BYTE:
+    case GL_BYTE:
+        component_size = 1;
+        break;
+    case GL_UNSIGNED_SHORT:
+    case GL_SHORT:
+    case GL_HALF_FLOAT:
+        component_size = 2;
+        break;
+    case GL_UNSIGNED_INT:
+    case GL_INT:
+    case GL_FLOAT:
+        component_size = 4;
+        break;
+    }
+    s->sample_size = component_size * component_count;
 
     if (params->external_storage || params->external_oes)
         s->external_storage = 1;
