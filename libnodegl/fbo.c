@@ -116,11 +116,15 @@ int ngli_fbo_init(struct fbo *fbo, struct glcontext *gl, const struct fbo_params
 
     if(params->nb_draw_buffers > 0) {
         // obey color attachment mapping
-        GLenum buffers[15];
+        struct darray buffer_indicies;
+        ngli_darray_init(&buffer_indicies, sizeof(GLenum), 0);
         for (int i = 0; i < params->nb_draw_buffers; i++) {
-            buffers[i] = GL_COLOR_ATTACHMENT0 + params->draw_buffers[i];
+            int buffer_index = GL_COLOR_ATTACHMENT0 + params->draw_buffers[i];
+            ngli_darray_push(&buffer_indicies, &buffer_index);
         }
+        GLenum* buffers = ngli_darray_data(&buffer_indicies);
         ngli_glDrawBuffers(gl, params->nb_draw_buffers, buffers);
+        ngli_darray_reset(&buffer_indicies);
     }
 
     if (ngli_glCheckFramebufferStatus(gl, GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
