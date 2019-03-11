@@ -111,10 +111,15 @@ static int rtt_prefetch(struct ngl_node *node)
         s->samples = 0;
     }
 
-    if (!(gl->features & NGLI_FEATURE_TEXTURE_CUBE) &&
+    if (!(gl->features & NGLI_FEATURE_DRAW_BUFFERS) &&
         s->nb_draw_buffers > 0) {
         LOG(WARNING, "context does not support draw buffers");
         s->nb_draw_buffers = 0;
+    }
+    else {
+        if(s->nb_draw_buffers > gl->max_draw_buffers) {
+            s->nb_draw_buffers = gl->max_draw_buffers;
+        }
     }
 
     if (s->depth_texture) {
